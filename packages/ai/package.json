@@ -1,0 +1,38 @@
+{
+  "name": "@voltx/ai",
+  "version": "0.3.0",
+  "description": "VoltX AI — Unified LLM provider abstraction with streaming, tool calling, and structured output",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0"
+  },
+  "keywords": ["voltx", "ai", "llm", "openai", "anthropic", "cerebras", "streaming", "tool-calling"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codewithshail/voltx.git",
+    "directory": "packages/ai"
+  },
+  "homepage": "https://voltx.co.in",
+  "author": "Promptly AI Team"
+}

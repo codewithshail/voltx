@@ -1,0 +1,40 @@
+{
+  "name": "@voltx/ui",
+  "version": "0.3.0",
+  "description": "VoltX React hooks — useRAG, useAgent, useChat, useCompletion",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --external react",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --external react --watch",
+    "clean": "rm -rf dist"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "devDependencies": {
+    "react": "^19.0.0",
+    "@types/react": "^19.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0"
+  },
+  "files": ["dist"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codewithshail/voltx.git",
+    "directory": "packages/ui"
+  },
+  "homepage": "https://voltx.co.in",
+  "bugs": "https://github.com/codewithshail/voltx/issues",
+  "keywords": ["voltx", "react", "hooks", "useChat", "useAgent", "ai", "ui"]
+}

@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/cli" },
+    { "path": "packages/db" },
+    { "path": "packages/auth" },
+    { "path": "packages/rag" },
+    { "path": "packages/agents" },
+    { "path": "packages/memory" },
+    { "path": "packages/ui" }
+  ],
+  "include": [],
+  "exclude": ["node_modules", "dist", "templates"]
+}

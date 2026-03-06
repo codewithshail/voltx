@@ -1,0 +1,39 @@
+{
+  "name": "@voltx/agents",
+  "version": "0.3.1",
+  "description": "VoltX agent loop — tool use, planning, multi-step execution",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@voltx/ai": "^0.3.0",
+    "@voltx/memory": "^0.3.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0"
+  },
+  "files": ["dist"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codewithshail/voltx.git",
+    "directory": "packages/agents"
+  },
+  "homepage": "https://voltx.co.in",
+  "bugs": "https://github.com/codewithshail/voltx/issues",
+  "keywords": ["voltx", "agents", "ai-agent", "tool-use", "llm", "planning"]
+}

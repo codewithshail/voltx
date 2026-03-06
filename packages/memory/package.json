@@ -1,0 +1,38 @@
+{
+  "name": "@voltx/memory",
+  "version": "0.3.0",
+  "description": "VoltX memory — short-term and long-term memory for agents and conversations",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0"
+  },
+  "files": ["dist"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codewithshail/voltx.git",
+    "directory": "packages/memory"
+  },
+  "homepage": "https://voltx.co.in",
+  "bugs": "https://github.com/codewithshail/voltx/issues",
+  "keywords": ["voltx", "memory", "conversation", "short-term", "long-term", "ai"]
+}

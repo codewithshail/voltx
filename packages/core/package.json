@@ -1,0 +1,38 @@
+{
+  "name": "@voltx/core",
+  "version": "0.3.1",
+  "description": "VoltX framework engine — config loader, plugin system, runtime",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "@voltx/server": "^0.3.0"
+  },
+  "files": ["dist"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codewithshail/voltx.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://voltx.co.in",
+  "bugs": "https://github.com/codewithshail/voltx/issues",
+  "keywords": ["voltx", "ai", "framework", "config", "plugin", "typescript"]
+}

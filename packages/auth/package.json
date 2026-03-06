@@ -1,0 +1,66 @@
+{
+  "name": "@voltx/auth",
+  "version": "0.3.0",
+  "description": "VoltX auth — Better Auth, JWT, API keys with Hono middleware",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "hono": "^4.7.0"
+  },
+  "peerDependencies": {
+    "better-auth": ">=1.0.0",
+    "jose": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "better-auth": {
+      "optional": true
+    },
+    "jose": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@better-auth/drizzle-adapter": "^1.5.3",
+    "better-auth": "^1.5.3",
+    "jose": "^6.1.3",
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codewithshail/voltx.git",
+    "directory": "packages/auth"
+  },
+  "homepage": "https://voltx.co.in",
+  "bugs": "https://github.com/codewithshail/voltx/issues",
+  "keywords": [
+    "voltx",
+    "auth",
+    "authentication",
+    "better-auth",
+    "jwt",
+    "api-key",
+    "hono",
+    "middleware",
+    "session"
+  ],
+  "author": "Promptly AI Team"
+}

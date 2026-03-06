@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+coverage/
+.next/
+out/
+
+# Internal planning docs
+PHASE2-PLAN.md
+PHASE3-PLAN.md
+
+# npm
+.npmrc
+
+# Templates (dead weight — scaffolding is in packages/create-voltx-app)
+templates/

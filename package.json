@@ -1,0 +1,30 @@
+{
+  "name": "voltx",
+  "private": true,
+  "description": "VoltX — The AI-first full-stack JavaScript framework",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codewithshail/voltx.git"
+  },
+  "homepage": "https://voltx.co.in",
+  "bugs": "https://github.com/codewithshail/voltx/issues",
+  "license": "MIT",
+  "keywords": ["voltx", "ai", "framework", "rag", "agents", "llm", "typescript", "full-stack"],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "tsx": "^4.21.0",
+    "turbo": "^2.4.0",
+    "typescript": "^5.7.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

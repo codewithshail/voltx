@@ -1,0 +1,33 @@
+{
+  "name": "create-voltx-app",
+  "version": "0.3.4",
+  "description": "Create a new VoltX AI-powered app with one command",
+  "bin": {
+    "create-voltx-app": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs --dts",
+    "dev": "tsup src/index.ts --format cjs --dts --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.10.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0"
+  },
+  "files": ["dist"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codewithshail/voltx.git",
+    "directory": "packages/create-voltx-app"
+  },
+  "homepage": "https://voltx.dev",
+  "bugs": "https://github.com/codewithshail/voltx/issues",
+  "keywords": ["voltx", "create-voltx-app", "ai", "framework", "scaffolding", "cli"]
+}

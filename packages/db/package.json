@@ -1,0 +1,42 @@
+{
+  "name": "@voltx/db",
+  "version": "0.3.0",
+  "description": "VoltX database — Drizzle ORM + Neon Postgres + Pinecone + pgvector adapters",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.44.0",
+    "@neondatabase/serverless": "^1.0.0",
+    "@pinecone-database/pinecone": "^7.1.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.7.0"
+  },
+  "files": ["dist"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codewithshail/voltx.git",
+    "directory": "packages/db"
+  },
+  "homepage": "https://voltx.co.in",
+  "bugs": "https://github.com/codewithshail/voltx/issues",
+  "keywords": ["voltx", "database", "drizzle", "neon", "postgres", "pinecone", "pgvector", "vector-db"],
+  "author": "Promptly AI Team"
+}
