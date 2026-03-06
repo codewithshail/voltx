@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @voltx/cli — create-voltx-app scaffolding
+// @voltx/cli — non-interactive scaffolding (used by `voltx create <name>`)
 
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -11,9 +11,16 @@ export interface CreateProjectOptions {
   auth?: "better-auth" | "jwt" | "none";
 }
 
-export async function createProject(
-  options: CreateProjectOptions
-): Promise<void> {
+const V = "^0.3.0";
+
+const TEMPLATE_DEPS: Record<string, Record<string, string>> = {
+  blank: { "@voltx/core": V, "@voltx/server": V },
+  chatbot: { "@voltx/core": V, "@voltx/ai": V, "@voltx/server": V, "@voltx/memory": V },
+  "rag-app": { "@voltx/core": V, "@voltx/ai": V, "@voltx/server": V, "@voltx/rag": V, "@voltx/db": V },
+  "agent-app": { "@voltx/core": V, "@voltx/ai": V, "@voltx/server": V, "@voltx/agents": V, "@voltx/memory": V },
+};
+
+export async function createProject(options: CreateProjectOptions): Promise<void> {
   const { name, template = "blank", auth = "none" } = options;
   const targetDir = path.resolve(process.cwd(), name);
 
@@ -24,127 +31,65 @@ export async function createProject(
 
   fs.mkdirSync(targetDir, { recursive: true });
 
-  // Determine dependencies based on template
-  const templateDeps: Record<string, Record<string, string>> = {
-    blank: {
-      "@voltx/core": "^0.3.0",
-      "@voltx/server": "^0.3.0",
-    },
-    chatbot: {
-      "@voltx/core": "^0.3.0",
-      "@voltx/ai": "^0.3.0",
-      "@voltx/server": "^0.3.0",
-      "@voltx/memory": "^0.3.0",
-    },
-    "rag-app": {
-      "@voltx/core": "^0.3.0",
-      "@voltx/ai": "^0.3.0",
-      "@voltx/server": "^0.3.0",
-      "@voltx/rag": "^0.3.0",
-      "@voltx/db": "^0.3.0",
-    },
-    "agent-app": {
-      "@voltx/core": "^0.3.0",
-      "@voltx/ai": "^0.3.0",
-      "@voltx/server": "^0.3.0",
-      "@voltx/agents": "^0.3.0",
-      "@voltx/memory": "^0.3.0",
-    },
-  };
-
-  const packageJson = {
-    name,
-    version: "0.1.0",
-    private: true,
-    scripts: {
-      dev: "voltx dev",
-      build: "voltx build",
-      start: "voltx start",
-    },
-    dependencies: {
-      ...(templateDeps[template] ?? templateDeps["blank"]),
-      "@voltx/cli": "^0.3.0",
-      ...(auth === "better-auth" ? { "@voltx/auth": "^0.3.0", "better-auth": "^1.5.0" } : {}),
-      ...(auth === "jwt" ? { "@voltx/auth": "^0.3.0", "jose": "^6.0.0" } : {}),
-    },
-    devDependencies: {
-      typescript: "^5.7.0",
-      tsx: "^4.21.0",
-      tsup: "^8.0.0",
-      "@types/node": "^22.0.0",
-    },
-  };
-
-  fs.writeFileSync(
-    path.join(targetDir, "package.json"),
-    JSON.stringify(packageJson, null, 2)
-  );
-
-  // Create voltx.config.ts — template-specific
-  const hasDb = template === "rag-app" || template === "agent-app" || auth === "better-auth";
   const provider = template === "rag-app" ? "openai" : "cerebras";
   const model = template === "rag-app" ? "gpt-4o" : "llama3.1-8b";
+  const hasDb = template === "rag-app" || template === "agent-app" || auth === "better-auth";
 
-  let configContent = `import { defineConfig } from "@voltx/core";
+  // package.json
+  const deps: Record<string, string> = { ...(TEMPLATE_DEPS[template] ?? TEMPLATE_DEPS["blank"]), "@voltx/cli": V };
+  if (auth === "better-auth") { deps["@voltx/auth"] = V; deps["better-auth"] = "^1.5.0"; }
+  else if (auth === "jwt") { deps["@voltx/auth"] = V; deps["jose"] = "^6.0.0"; }
 
-export default defineConfig({
-  name: "${name}",
-  port: 3000,
-  ai: {
-    provider: "${provider}",
-    model: "${model}",
-  },`;
+  fs.writeFileSync(path.join(targetDir, "package.json"), JSON.stringify({
+    name, version: "0.1.0", private: true,
+    scripts: { dev: "voltx dev", build: "voltx build", start: "voltx start" },
+    dependencies: deps,
+    devDependencies: { typescript: "^5.7.0", tsx: "^4.21.0", tsup: "^8.0.0", "@types/node": "^22.0.0" },
+  }, null, 2));
 
-  if (hasDb) {
-    configContent += `\n  db: {\n    url: process.env.DATABASE_URL,\n  },`;
-  }
+  // voltx.config.ts
+  let config = `import { defineConfig } from "@voltx/core";\n\nexport default defineConfig({\n  name: "${name}",\n  port: 3000,\n  ai: {\n    provider: "${provider}",\n    model: "${model}",\n  },`;
+  if (hasDb) config += `\n  db: {\n    url: process.env.DATABASE_URL,\n  },`;
+  if (auth !== "none") config += `\n  auth: {\n    provider: "${auth}",\n  },`;
+  config += `\n  server: {\n    routesDir: "src/routes",\n    staticDir: "public",\n    cors: true,\n  },\n});\n`;
+  fs.writeFileSync(path.join(targetDir, "voltx.config.ts"), config);
 
-  if (auth !== "none") {
-    configContent += `\n  auth: {\n    provider: "${auth}",\n  },`;
-  }
-
-  configContent += `\n  server: {\n    routesDir: "src/routes",\n    staticDir: "public",\n    cors: true,\n  },\n});\n`;
-
-  fs.writeFileSync(path.join(targetDir, "voltx.config.ts"), configContent);
-
-  // Create directory structure with routes
+  // Directories
   fs.mkdirSync(path.join(targetDir, "src", "routes", "api"), { recursive: true });
   fs.mkdirSync(path.join(targetDir, "public"), { recursive: true });
 
-  // src/index.ts — entry point
-  fs.writeFileSync(
-    path.join(targetDir, "src", "index.ts"),
-    `import { createApp } from "@voltx/core";\nimport config from "../voltx.config";\n\nconst app = createApp(config);\napp.start();\n`
-  );
+  // tsconfig.json
+  fs.writeFileSync(path.join(targetDir, "tsconfig.json"), JSON.stringify({
+    compilerOptions: { target: "ES2022", module: "ESNext", moduleResolution: "bundler", strict: true, esModuleInterop: true, skipLibCheck: true, outDir: "dist" },
+    include: ["src", "voltx.config.ts"],
+  }, null, 2));
+
+  // src/index.ts
+  fs.writeFileSync(path.join(targetDir, "src", "index.ts"),
+    `import { createApp } from "@voltx/core";\nimport config from "../voltx.config";\n\nconst app = createApp(config);\napp.start();\n`);
 
   // src/routes/index.ts — health check
-  fs.writeFileSync(
-    path.join(targetDir, "src", "routes", "index.ts"),
-    `// GET / — Health check\nimport type { Context } from "@voltx/server";\n\nexport function GET(c: Context) {\n  return c.json({ name: "${name}", status: "ok" });\n}\n`
-  );
+  fs.writeFileSync(path.join(targetDir, "src", "routes", "index.ts"),
+    `// GET / — Health check\nimport type { Context } from "@voltx/server";\n\nexport function GET(c: Context) {\n  return c.json({ name: "${name}", status: "ok" });\n}\n`);
 
-  // Template-specific route files
+  // ── Chat route (chatbot + agent-app) ─────────────────────────────────────
   if (template === "chatbot" || template === "agent-app") {
-    fs.writeFileSync(
-      path.join(targetDir, "src", "routes", "api", "chat.ts"),
+    fs.writeFileSync(path.join(targetDir, "src", "routes", "api", "chat.ts"),
       `// POST /api/chat — Streaming chat with conversation memory
 import type { Context } from "@voltx/server";
 import { streamText } from "@voltx/ai";
 import { createMemory } from "@voltx/memory";
 
-// In-memory for dev; swap to createMemory("postgres", { url }) for production
 const memory = createMemory({ maxMessages: 50 });
 
 export async function POST(c: Context) {
   const { messages, conversationId = "default" } = await c.req.json();
 
-  // Store the latest user message
   const lastMessage = messages[messages.length - 1];
   if (lastMessage?.role === "user") {
     await memory.add(conversationId, { role: "user", content: lastMessage.content });
   }
 
-  // Get conversation history from memory
   const history = await memory.get(conversationId);
 
   const result = await streamText({
@@ -153,36 +98,30 @@ export async function POST(c: Context) {
     messages: history.map((m) => ({ role: m.role, content: m.content })),
   });
 
-  // Store assistant response after stream completes
   result.text.then(async (text) => {
     await memory.add(conversationId, { role: "assistant", content: text });
   });
 
   return result.toSSEResponse();
 }
-`
-    );
+`);
   }
 
-  // Agent-specific files
+  // ── Agent-specific files ─────────────────────────────────────────────────
   if (template === "agent-app") {
     fs.mkdirSync(path.join(targetDir, "src", "agents"), { recursive: true });
     fs.mkdirSync(path.join(targetDir, "src", "tools"), { recursive: true });
 
-    // Default tools for non-interactive CLI: calculator + datetime (no API keys needed)
-    fs.writeFileSync(
-      path.join(targetDir, "src", "tools", "calculator.ts"),
-      `// Calculator tool — evaluates math expressions (no API key needed)
+    // Default tools: calculator + datetime (no API keys needed)
+    fs.writeFileSync(path.join(targetDir, "src", "tools", "calculator.ts"), `// Calculator tool — evaluates math expressions (no API key needed)
 import type { Tool } from "@voltx/agents";
 
 export const calculatorTool: Tool = {
   name: "calculator",
-  description: "Evaluate a math expression. Supports +, -, *, /, %, parentheses, and Math functions like Math.sqrt(), Math.pow(), Math.round().",
+  description: "Evaluate a math expression. Supports +, -, *, /, %, parentheses, and Math functions.",
   parameters: {
     type: "object",
-    properties: {
-      expression: { type: "string", description: "The math expression to evaluate, e.g. '(15 * 85) / 100'" },
-    },
+    properties: { expression: { type: "string", description: "The math expression to evaluate" } },
     required: ["expression"],
   },
   async execute(args: { expression: string }) {
@@ -194,50 +133,35 @@ export const calculatorTool: Tool = {
       const result = new Function("return " + safe)();
       return \`\${args.expression} = \${result}\`;
     } catch (err) {
-      return \`Error evaluating "\${args.expression}": \${err instanceof Error ? err.message : String(err)}\`;
+      return \`Error: \${err instanceof Error ? err.message : String(err)}\`;
     }
   },
 };
-`
-    );
+`);
 
-    fs.writeFileSync(
-      path.join(targetDir, "src", "tools", "datetime.ts"),
-      `// Date & time tool — returns current date, time, timezone (no API key needed)
+    fs.writeFileSync(path.join(targetDir, "src", "tools", "datetime.ts"), `// Date & time tool — returns current date, time, timezone (no API key needed)
 import type { Tool } from "@voltx/agents";
 
 export const datetimeTool: Tool = {
   name: "datetime",
-  description: "Get the current date, time, day of week, and timezone. Use this when the user asks about the current date or time.",
+  description: "Get the current date, time, day of week, and timezone.",
   parameters: {
     type: "object",
-    properties: {
-      timezone: { type: "string", description: "Optional IANA timezone like 'America/New_York' or 'Asia/Kolkata'. Defaults to server timezone." },
-    },
+    properties: { timezone: { type: "string", description: "Optional IANA timezone. Defaults to server timezone." } },
   },
   async execute(args: { timezone?: string }) {
     const now = new Date();
     const tz = args.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
     const formatted = now.toLocaleString("en-US", {
-      timeZone: tz,
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: true,
+      timeZone: tz, weekday: "long", year: "numeric", month: "long", day: "numeric",
+      hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true,
     });
     return \`Current date/time (\${tz}): \${formatted}\`;
   },
 };
-`
-    );
+`);
 
-    fs.writeFileSync(
-      path.join(targetDir, "src", "agents", "assistant.ts"),
-      `// AI Agent — autonomous assistant with tools
+    fs.writeFileSync(path.join(targetDir, "src", "agents", "assistant.ts"), `// AI Agent — autonomous assistant with tools
 import { createAgent } from "@voltx/agents";
 import { calculatorTool } from "../tools/calculator";
 import { datetimeTool } from "../tools/datetime";
@@ -249,58 +173,41 @@ export const assistant = createAgent({
   tools: [calculatorTool, datetimeTool],
   maxIterations: 5,
 });
-`
-    );
+`);
 
-    fs.writeFileSync(
-      path.join(targetDir, "src", "routes", "api", "agent.ts"),
-      `import type { Context } from "@voltx/server";
-import { assistant } from "../../agents/assistant";
-
-export async function POST(c: Context) {
-  const { input } = await c.req.json();
-  if (!input) return c.json({ error: "Missing 'input' field" }, 400);
-  const result = await assistant.run(input);
-  return c.json({ content: result.content, steps: result.steps });
-}
-`
-    );
+    fs.writeFileSync(path.join(targetDir, "src", "routes", "api", "agent.ts"),
+      `// POST /api/agent — Run the AI agent\nimport type { Context } from "@voltx/server";\nimport { assistant } from "../../agents/assistant";\n\nexport async function POST(c: Context) {\n  const { input } = await c.req.json();\n  if (!input) return c.json({ error: "Missing 'input' field" }, 400);\n  const result = await assistant.run(input);\n  return c.json({ content: result.content, steps: result.steps });\n}\n`);
   }
 
+  // ── RAG routes ─────────────────────────────────────────────────────────────
   if (template === "rag-app") {
-    // RAG uses openai for embeddings by default (most providers don't support embeddings)
     const embedModel = "openai:text-embedding-3-small";
-
     fs.mkdirSync(path.join(targetDir, "src", "routes", "api", "rag"), { recursive: true });
-    fs.writeFileSync(
-      path.join(targetDir, "src", "routes", "api", "rag", "query.ts"),
+
+    fs.writeFileSync(path.join(targetDir, "src", "routes", "api", "rag", "query.ts"),
       `// POST /api/rag/query — Query documents with RAG
 import type { Context } from "@voltx/server";
 import { streamText } from "@voltx/ai";
 import { createRAGPipeline, createEmbedder } from "@voltx/rag";
 import { createVectorStore } from "@voltx/db";
 
-const vectorStore = createVectorStore(); // swap to "pinecone" or "pgvector" for production
+const vectorStore = createVectorStore();
 const embedder = createEmbedder({ model: "${embedModel}" });
 const rag = createRAGPipeline({ embedder, vectorStore });
 
 export async function POST(c: Context) {
   const { question } = await c.req.json();
-
   const context = await rag.getContext(question, { topK: 5 });
-
   const result = await streamText({
     model: "${provider}:${model}",
-    system: \`Answer the user's question based on the following context. If the context doesn't contain relevant information, say so.\\n\\nContext:\\n\${context}\`,
+    system: \`Answer based on context. If not relevant, say so.\\n\\nContext:\\n\${context}\`,
     messages: [{ role: "user", content: question }],
   });
-
   return result.toSSEResponse();
 }
-`
-    );
-    fs.writeFileSync(
-      path.join(targetDir, "src", "routes", "api", "rag", "ingest.ts"),
+`);
+
+    fs.writeFileSync(path.join(targetDir, "src", "routes", "api", "rag", "ingest.ts"),
       `// POST /api/rag/ingest — Ingest documents into the vector store
 import type { Context } from "@voltx/server";
 import { createRAGPipeline, createEmbedder } from "@voltx/rag";
@@ -312,100 +219,38 @@ const rag = createRAGPipeline({ embedder, vectorStore });
 
 export async function POST(c: Context) {
   const { text, idPrefix } = await c.req.json();
-
-  if (!text || typeof text !== "string") {
-    return c.json({ error: "Missing 'text' field" }, 400);
-  }
-
+  if (!text || typeof text !== "string") return c.json({ error: "Missing 'text' field" }, 400);
   const result = await rag.ingest(text, idPrefix ?? "doc");
   return c.json({ status: "ok", chunks: result.chunks, ids: result.ids });
 }
-`
-    );
+`);
   }
 
-  // Auth route files
+  // ── Auth routes ────────────────────────────────────────────────────────────
   if (auth === "better-auth") {
-    // Better Auth needs a catch-all route at /api/auth/* for sign-up, sign-in, OAuth, etc.
     fs.mkdirSync(path.join(targetDir, "src", "routes", "api", "auth"), { recursive: true });
-    fs.writeFileSync(
-      path.join(targetDir, "src", "routes", "api", "auth", "[...path].ts"),
-      `// ALL /api/auth/* — Better Auth handler
-import type { Context } from "@voltx/server";
-import { auth } from "../../../lib/auth";
-import { createAuthHandler } from "@voltx/auth";
-
-const handler = createAuthHandler(auth);
-
-export const GET = (c: Context) => handler(c);
-export const POST = (c: Context) => handler(c);
-`
-    );
+    fs.writeFileSync(path.join(targetDir, "src", "routes", "api", "auth", "[...path].ts"),
+      `// ALL /api/auth/* — Better Auth handler\nimport type { Context } from "@voltx/server";\nimport { auth } from "../../../lib/auth";\nimport { createAuthHandler } from "@voltx/auth";\n\nconst handler = createAuthHandler(auth);\n\nexport const GET = (c: Context) => handler(c);\nexport const POST = (c: Context) => handler(c);\n`);
     fs.mkdirSync(path.join(targetDir, "src", "lib"), { recursive: true });
-    fs.writeFileSync(
-      path.join(targetDir, "src", "lib", "auth.ts"),
-      `// Auth configuration — Better Auth with DB-backed sessions
-import { createAuth, createAuthMiddleware } from "@voltx/auth";
-
-export const auth = createAuth("better-auth", {
-  database: process.env.DATABASE_URL!,
-  emailAndPassword: true,
-});
-
-export const authMiddleware = createAuthMiddleware({
-  provider: auth,
-  publicPaths: ["/api/auth", "/api/health", "/"],
-});
-`
-    );
+    fs.writeFileSync(path.join(targetDir, "src", "lib", "auth.ts"),
+      `import { createAuth, createAuthMiddleware } from "@voltx/auth";\n\nexport const auth = createAuth("better-auth", {\n  database: process.env.DATABASE_URL!,\n  emailAndPassword: true,\n});\n\nexport const authMiddleware = createAuthMiddleware({\n  provider: auth,\n  publicPaths: ["/api/auth", "/api/health", "/"],\n});\n`);
   } else if (auth === "jwt") {
     fs.mkdirSync(path.join(targetDir, "src", "lib"), { recursive: true });
-    fs.writeFileSync(
-      path.join(targetDir, "src", "lib", "auth.ts"),
-      `// Auth configuration — JWT (stateless)
-import { createAuth, createAuthMiddleware } from "@voltx/auth";
-
-export const jwt = createAuth("jwt", {
-  secret: process.env.JWT_SECRET!,
-  expiresIn: "7d",
-});
-
-export const authMiddleware = createAuthMiddleware({
-  provider: jwt,
-  publicPaths: ["/api/auth", "/api/health", "/"],
-});
-`
-    );
-    fs.writeFileSync(
-      path.join(targetDir, "src", "routes", "api", "auth.ts"),
-      `// POST /api/auth/login — Example JWT login route
-import type { Context } from "@voltx/server";
-import { jwt } from "../../lib/auth";
-
-export async function POST(c: Context) {
-  const { email, password } = await c.req.json();
-
-  if (!email || !password) {
-    return c.json({ error: "Email and password are required" }, 400);
+    fs.writeFileSync(path.join(targetDir, "src", "lib", "auth.ts"),
+      `import { createAuth, createAuthMiddleware } from "@voltx/auth";\n\nexport const jwt = createAuth("jwt", {\n  secret: process.env.JWT_SECRET!,\n  expiresIn: "7d",\n});\n\nexport const authMiddleware = createAuthMiddleware({\n  provider: jwt,\n  publicPaths: ["/api/auth", "/api/health", "/"],\n});\n`);
+    fs.writeFileSync(path.join(targetDir, "src", "routes", "api", "auth.ts"),
+      `import type { Context } from "@voltx/server";\nimport { jwt } from "../../lib/auth";\n\nexport async function POST(c: Context) {\n  const { email, password } = await c.req.json();\n  if (!email || !password) return c.json({ error: "Email and password are required" }, 400);\n  const token = await jwt.sign({ sub: email, email });\n  return c.json({ token });\n}\n`);
   }
 
-  const token = await jwt.sign({ sub: email, email });
-  return c.json({ token });
-}
-`
-    );
-  }
-
-  // .env.example — template-specific
+  // ── .env.example ───────────────────────────────────────────────────────────
   let envContent = "";
   if (template === "rag-app") {
     envContent += "# ─── LLM Provider ────────────────────────────────\nOPENAI_API_KEY=sk-...\n\n";
-    envContent += "# ─── Database (Neon Postgres) ────────────────────\nDATABASE_URL=postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/dbname?sslmode=require\n\n";
-    envContent += "# ─── Vector Database (Pinecone) ──────────────────\nPINECONE_API_KEY=pc-...\nPINECONE_INDEX=voltx-embeddings\n\n";
+    envContent += "# ─── Database ────────────────────────────────────\nDATABASE_URL=\n\n";
   } else if (template === "chatbot" || template === "agent-app") {
     envContent += "# ─── LLM Provider ────────────────────────────────\nCEREBRAS_API_KEY=csk-...\n\n";
     if (template === "agent-app") {
-      envContent += "# ─── Database (Neon Postgres — optional) ─────────\nDATABASE_URL=\n\n";
+      envContent += "# ─── Database (optional) ─────────────────────────\nDATABASE_URL=\n\n";
       envContent += "# ─── Tool API Keys (add keys for tools you use) ──\n";
       envContent += "# TAVILY_API_KEY=tvly-...       (Web Search — https://tavily.com)\n";
       envContent += "# SERPER_API_KEY=               (Google Search — https://serper.dev)\n";
@@ -413,55 +258,26 @@ export async function POST(c: Context) {
       envContent += "# NEWS_API_KEY=                 (News — https://newsapi.org)\n\n";
     }
   } else {
-    envContent += "# ─── LLM Provider (add your key) ─────────────────\n# OPENAI_API_KEY=sk-...\n# CEREBRAS_API_KEY=csk-...\n\n";
+    envContent += "# ─── LLM Provider ────────────────────────────────\n# OPENAI_API_KEY=sk-...\n# CEREBRAS_API_KEY=csk-...\n\n";
   }
-
-  // Auth env vars
   if (auth === "better-auth") {
-    envContent += "# ─── Auth (Better Auth) ──────────────────────────\nBETTER_AUTH_SECRET=your-secret-key-min-32-chars-here\nBETTER_AUTH_URL=http://localhost:3000\n";
-    if (template !== "rag-app" && template !== "agent-app") {
-      envContent += "DATABASE_URL=postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/dbname?sslmode=require\n";
-    }
-    envContent += "# GITHUB_CLIENT_ID=\n# GITHUB_CLIENT_SECRET=\n\n";
+    envContent += "# ─── Auth (Better Auth) ──────────────────────────\nBETTER_AUTH_SECRET=your-secret-key-min-32-chars-here\nBETTER_AUTH_URL=http://localhost:3000\n\n";
   } else if (auth === "jwt") {
     envContent += "# ─── Auth (JWT) ──────────────────────────────────\nJWT_SECRET=your-jwt-secret-key\n\n";
   }
-
   envContent += "# ─── App ─────────────────────────────────────────\nPORT=3000\nNODE_ENV=development\n";
   fs.writeFileSync(path.join(targetDir, ".env.example"), envContent);
 
   // .gitignore
-  fs.writeFileSync(
-    path.join(targetDir, ".gitignore"),
-    "node_modules\ndist\n.env\n"
-  );
+  fs.writeFileSync(path.join(targetDir, ".gitignore"), "node_modules\ndist\n.env\n");
 
-  // tsconfig.json
-  fs.writeFileSync(
-    path.join(targetDir, "tsconfig.json"),
-    JSON.stringify(
-      {
-        compilerOptions: {
-          target: "ES2022",
-          module: "ESNext",
-          moduleResolution: "bundler",
-          strict: true,
-          esModuleInterop: true,
-          skipLibCheck: true,
-          outDir: "dist",
-        },
-        include: ["src", "voltx.config.ts"],
-      },
-      null,
-      2
-    )
-  );
+  // tsconfig already written above
 
   // Show the welcome banner
   printWelcomeBanner(name);
 }
 
-// CLI entry point — only runs when invoked directly as create-voltx-app
+// CLI entry point — only runs when invoked directly
 const isDirectRun =
   typeof require !== "undefined" &&
   require.main === module &&
@@ -475,16 +291,14 @@ if (isDirectRun) {
   }
 
   const templateFlag = process.argv.indexOf("--template");
-  const template =
-    templateFlag !== -1
-      ? (process.argv[templateFlag + 1] as CreateProjectOptions["template"])
-      : "blank";
+  const template = templateFlag !== -1
+    ? (process.argv[templateFlag + 1] as CreateProjectOptions["template"])
+    : "blank";
 
   const authFlag = process.argv.indexOf("--auth");
-  const auth =
-    authFlag !== -1
-      ? (process.argv[authFlag + 1] as CreateProjectOptions["auth"])
-      : "none";
+  const auth = authFlag !== -1
+    ? (process.argv[authFlag + 1] as CreateProjectOptions["auth"])
+    : "none";
 
   createProject({ name: projectName, template, auth }).catch((err) => {
     console.error("[voltx] Error:", err);

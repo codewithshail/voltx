@@ -89,7 +89,7 @@ function parseArgs(argv: string[]) {
   return { projectName, template, useDefault, pkgManager, auth };
 }
 
-// ─── Template definitions ────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
 
 const VOLTX_VERSION = "^0.3.0";
 
@@ -97,46 +97,24 @@ const TEMPLATES: Record<string, { label: string; hint: string; deps: Record<stri
   blank: {
     label: "Blank",
     hint: "Minimal server with @voltx/core + file-based routing",
-    deps: {
-      "@voltx/core": VOLTX_VERSION,
-      "@voltx/server": VOLTX_VERSION,
-    },
+    deps: { "@voltx/core": VOLTX_VERSION, "@voltx/server": VOLTX_VERSION },
   },
   chatbot: {
     label: "Chatbot",
     hint: "Streaming chat with AI + memory + file-based routes",
-    deps: {
-      "@voltx/core": VOLTX_VERSION,
-      "@voltx/ai": VOLTX_VERSION,
-      "@voltx/server": VOLTX_VERSION,
-      "@voltx/memory": VOLTX_VERSION,
-    },
+    deps: { "@voltx/core": VOLTX_VERSION, "@voltx/ai": VOLTX_VERSION, "@voltx/server": VOLTX_VERSION, "@voltx/memory": VOLTX_VERSION },
   },
   "rag-app": {
     label: "RAG App",
     hint: "Document Q&A with vector DB + streaming + file-based routes",
-    deps: {
-      "@voltx/core": VOLTX_VERSION,
-      "@voltx/ai": VOLTX_VERSION,
-      "@voltx/server": VOLTX_VERSION,
-      "@voltx/rag": VOLTX_VERSION,
-      "@voltx/db": VOLTX_VERSION,
-    },
+    deps: { "@voltx/core": VOLTX_VERSION, "@voltx/ai": VOLTX_VERSION, "@voltx/server": VOLTX_VERSION, "@voltx/rag": VOLTX_VERSION, "@voltx/db": VOLTX_VERSION },
   },
   "agent-app": {
     label: "Agent App",
     hint: "AI agent with tools, memory, DB + file-based routes",
-    deps: {
-      "@voltx/core": VOLTX_VERSION,
-      "@voltx/ai": VOLTX_VERSION,
-      "@voltx/server": VOLTX_VERSION,
-      "@voltx/agents": VOLTX_VERSION,
-      "@voltx/memory": VOLTX_VERSION,
-    },
+    deps: { "@voltx/core": VOLTX_VERSION, "@voltx/ai": VOLTX_VERSION, "@voltx/server": VOLTX_VERSION, "@voltx/agents": VOLTX_VERSION, "@voltx/memory": VOLTX_VERSION },
   },
 };
-
-// ─── Provider env key mapping ────────────────────────────────────────────────
 
 const PROVIDER_ENV_KEYS: Record<string, string> = {
   openai: "OPENAI_API_KEY",
@@ -156,7 +134,42 @@ const PROVIDER_MODELS: Record<string, string> = {
   ollama: "llama3",
 };
 
-// ─── Package manager detection ───────────────────────────────────────────────
+const EMBEDDING_CAPABLE = new Set(["openai", "google", "ollama"]);
+
+const EMBEDDING_MODELS: Record<string, string> = {
+  openai: "openai:text-embedding-3-small",
+  google: "google:text-embedding-004",
+  ollama: "ollama:nomic-embed-text",
+};
+
+const ALL_PROVIDERS = [
+  { value: "cerebras", label: "Cerebras", hint: "Free tier, fast inference (Llama models)" },
+  { value: "openai", label: "OpenAI", hint: "GPT-4o, GPT-4o-mini — embeddings supported" },
+  { value: "anthropic", label: "Anthropic", hint: "Claude Sonnet, Claude Opus — no embeddings" },
+  { value: "google", label: "Google AI", hint: "Gemini Pro, Gemini Flash — embeddings supported" },
+  { value: "openrouter", label: "OpenRouter", hint: "Access 100+ models via one API — no embeddings" },
+  { value: "ollama", label: "Ollama", hint: "Local models, no API key — embeddings supported" },
+];
+
+// ─── Agent tool definitions ──────────────────────────────────────────────────
+
+interface AgentToolDef {
+  label: string;
+  hint: string;
+  envKey: string;
+  envHint: string;
+}
+
+const AGENT_TOOLS: Record<string, AgentToolDef> = {
+  calculator: { label: "Calculator", hint: "Math expressions — no API key needed", envKey: "", envHint: "" },
+  datetime: { label: "Date & Time", hint: "Current date/time/timezone — no API key needed", envKey: "", envHint: "" },
+  "web-search-tavily": { label: "Web Search (Tavily)", hint: "AI-optimized search — 1,000 free credits/month", envKey: "TAVILY_API_KEY", envHint: "tvly-..." },
+  "web-search-serper": { label: "Web Search (Serper)", hint: "Google search — 2,500 free searches/month", envKey: "SERPER_API_KEY", envHint: "" },
+  weather: { label: "Weather (OpenWeatherMap)", hint: "Current weather — 1,000 free calls/day", envKey: "OPENWEATHER_API_KEY", envHint: "" },
+  news: { label: "News (NewsAPI)", hint: "Top headlines & search — free for dev", envKey: "NEWS_API_KEY", envHint: "" },
+};
+
+// ─── Package manager helpers ─────────────────────────────────────────────────
 
 type PkgManager = "npm" | "pnpm" | "yarn" | "bun";
 
@@ -176,109 +189,37 @@ function runCommand(pm: PkgManager): string {
   return pm === "npm" ? "npm run" : pm;
 }
 
-// ─── README generation ───────────────────────────────────────────────────────
+// ─── Scaffold options ────────────────────────────────────────────────────────
 
-function generateReadme(projectName: string, template: string, pm: PkgManager): string {
-  return `# ${projectName}
-
-Built with [VoltX](https://voltx.dev) — the AI-first full-stack framework.
-
-Template: **${template}**
-
-## Getting Started
-
-\`\`\`bash
-# Install dependencies
-${installCommand(pm)}
-
-# Start development server
-${runCommand(pm)} dev
-
-# Build for production
-${runCommand(pm)} build
-
-# Start production server
-${runCommand(pm)} start
-\`\`\`
-
-## Generate Code
-
-\`\`\`bash
-# Generate a new API route
-npx voltx generate route api/users
-
-# Generate a new agent
-npx voltx generate agent assistant
-
-# Generate a new tool
-npx voltx generate tool search
-
-# Generate a new background job
-npx voltx generate job cleanup
-\`\`\`
-
-## Project Structure
-
-\`\`\`
-${projectName}/
-├── src/
-│   ├── routes/           # File-based API routes
-│   ├── agents/           # AI agent definitions
-│   ├── tools/            # Custom tools for agents
-│   ├── jobs/             # Background jobs
-│   └── index.ts          # App entry point
-├── voltx.config.ts       # VoltX configuration
-├── .env.example          # Environment variables template
-├── tsconfig.json
-└── package.json
-\`\`\`
-
-## Configuration
-
-Edit \`voltx.config.ts\` to configure your AI provider, database, and auth settings.
-
-## Learn More
-
-- [VoltX Documentation](https://voltx.dev)
-- [GitHub](https://github.com/codewithshail/voltx)
-`;
+interface ScaffoldOptions {
+  projectDir: string;
+  projectName: string;
+  template: string;
+  pm: PkgManager;
+  authChoice: AuthChoice;
+  aiProvider: string;
+  enableRag: boolean;
+  embeddingProvider: string;       // only used when enableRag + provider has no embeddings
+  selectedTools: string[];         // agent-app only
+  apiKeys: Record<string, string>; // all collected API keys (provider, tools, embedding)
 }
-
-// ─── Agent tool definitions ──────────────────────────────────────────────────
-
-interface AgentToolDef {
-  label: string;
-  hint: string;
-  envKey: string;       // empty = no API key needed
-  envHint: string;      // placeholder for .env
-}
-
-const AGENT_TOOLS: Record<string, AgentToolDef> = {
-  calculator: { label: "Calculator", hint: "Math expressions — no API key needed", envKey: "", envHint: "" },
-  datetime: { label: "Date & Time", hint: "Current date/time/timezone — no API key needed", envKey: "", envHint: "" },
-  "web-search-tavily": { label: "Web Search (Tavily)", hint: "AI-optimized search — 1,000 free credits/month", envKey: "TAVILY_API_KEY", envHint: "tvly-..." },
-  "web-search-serper": { label: "Web Search (Serper)", hint: "Google search — 2,500 free searches/month", envKey: "SERPER_API_KEY", envHint: "" },
-  weather: { label: "Weather (OpenWeatherMap)", hint: "Current weather — 1,000 free calls/day", envKey: "OPENWEATHER_API_KEY", envHint: "" },
-  news: { label: "News (NewsAPI)", hint: "Top headlines & search — free for dev", envKey: "NEWS_API_KEY", envHint: "" },
-};
 
 // ─── Scaffold logic ──────────────────────────────────────────────────────────
 
-function scaffold(projectDir: string, projectName: string, template: string, pm: PkgManager, authChoice: AuthChoice = "none", aiProvider = "cerebras", apiKey = "", selectedTools: string[] = ["calculator", "datetime"], toolApiKeys: Record<string, string> = {}): void {
+function scaffold(opts: ScaffoldOptions): void {
+  const { projectDir, projectName, template, pm, authChoice, aiProvider, enableRag, embeddingProvider, selectedTools, apiKeys } = opts;
   const tmpl = TEMPLATES[template] ?? TEMPLATES["blank"];
 
   fs.mkdirSync(projectDir, { recursive: true });
 
-  // Build dependencies — start with template deps
+  // Build dependencies
   const deps: Record<string, string> = { ...tmpl.deps };
-
-  // Add auth dependencies based on choice
-  if (authChoice === "better-auth") {
-    deps["@voltx/auth"] = VOLTX_VERSION;
-    deps["better-auth"] = "^1.5.0";
-  } else if (authChoice === "jwt") {
-    deps["@voltx/auth"] = VOLTX_VERSION;
-    deps["jose"] = "^6.0.0";
+  if (authChoice === "better-auth") { deps["@voltx/auth"] = VOLTX_VERSION; deps["better-auth"] = "^1.5.0"; }
+  else if (authChoice === "jwt") { deps["@voltx/auth"] = VOLTX_VERSION; deps["jose"] = "^6.0.0"; }
+  // Add RAG deps for chatbot/agent-app when RAG is enabled
+  if (enableRag && (template === "chatbot" || template === "agent-app")) {
+    deps["@voltx/rag"] = VOLTX_VERSION;
+    deps["@voltx/db"] = VOLTX_VERSION;
   }
 
   // package.json
@@ -292,8 +233,8 @@ function scaffold(projectDir: string, projectName: string, template: string, pm:
   };
   fs.writeFileSync(path.join(projectDir, "package.json"), JSON.stringify(pkg, null, 2));
 
-  // voltx.config.ts — template-specific
-  fs.writeFileSync(path.join(projectDir, "voltx.config.ts"), generateConfig(projectName, template, authChoice, aiProvider));
+  // voltx.config.ts
+  fs.writeFileSync(path.join(projectDir, "voltx.config.ts"), generateConfig(projectName, template, authChoice, aiProvider, enableRag));
 
   // tsconfig.json
   fs.writeFileSync(
@@ -301,42 +242,127 @@ function scaffold(projectDir: string, projectName: string, template: string, pm:
     JSON.stringify({ compilerOptions: { target: "ES2022", module: "ESNext", moduleResolution: "bundler", strict: true, esModuleInterop: true, skipLibCheck: true, outDir: "dist" }, include: ["src", "voltx.config.ts"] }, null, 2)
   );
 
-  // src/index.ts — always the same entry point
+  // Directories
   fs.mkdirSync(path.join(projectDir, "src", "routes", "api"), { recursive: true });
+  fs.mkdirSync(path.join(projectDir, "public"), { recursive: true });
+
+  // src/index.ts — entry point
   fs.writeFileSync(
     path.join(projectDir, "src", "index.ts"),
     `import { createApp } from "@voltx/core";\nimport config from "../voltx.config";\n\nconst app = createApp(config);\napp.start();\n`
   );
 
-  // src/routes/index.ts — health check (all templates)
+  // src/routes/index.ts — health check
   fs.writeFileSync(
     path.join(projectDir, "src", "routes", "index.ts"),
     `// GET / — Health check\nimport type { Context } from "@voltx/server";\n\nexport function GET(c: Context) {\n  return c.json({ name: "${projectName}", status: "ok" });\n}\n`
   );
 
-  // Template-specific route files
+  const modelStr = `${aiProvider}:${PROVIDER_MODELS[aiProvider] ?? "llama3.1-8b"}`;
+
+  // Resolve embedding model
+  const effectiveEmbedProvider = EMBEDDING_CAPABLE.has(aiProvider) ? aiProvider : embeddingProvider;
+  const embedModel = EMBEDDING_MODELS[effectiveEmbedProvider] ?? "openai:text-embedding-3-small";
+
+  // ── Chat route (chatbot + agent-app) ───────────────────────────────────────
   if (template === "chatbot" || template === "agent-app") {
-    const modelStr = `${aiProvider}:${PROVIDER_MODELS[aiProvider] ?? "llama3.1-8b"}`;
+    if (template === "chatbot" && enableRag) {
+      // Chatbot with RAG — chat route pulls context from vector store before responding
+      fs.writeFileSync(
+        path.join(projectDir, "src", "routes", "api", "chat.ts"),
+        generateChatRouteWithRag(modelStr, embedModel)
+      );
+    } else {
+      // Standard chat route
+      fs.writeFileSync(
+        path.join(projectDir, "src", "routes", "api", "chat.ts"),
+        generateChatRoute(modelStr)
+      );
+    }
+  }
+
+  // ── RAG ingest route (rag-app, or chatbot/agent-app with RAG enabled) ──────
+  if (template === "rag-app" || enableRag) {
+    fs.mkdirSync(path.join(projectDir, "src", "routes", "api", "rag"), { recursive: true });
+
+    if (template === "rag-app") {
+      // Full RAG app — query + ingest routes
+      fs.writeFileSync(path.join(projectDir, "src", "routes", "api", "rag", "query.ts"), generateRagQueryRoute(modelStr, embedModel));
+    }
+
+    // Ingest route for all RAG-enabled templates
+    fs.writeFileSync(path.join(projectDir, "src", "routes", "api", "rag", "ingest.ts"), generateRagIngestRoute(embedModel));
+  }
+
+  // ── Agent-specific files ───────────────────────────────────────────────────
+  if (template === "agent-app") {
+    fs.mkdirSync(path.join(projectDir, "src", "agents"), { recursive: true });
+    fs.mkdirSync(path.join(projectDir, "src", "tools"), { recursive: true });
+
+    const toolImports: string[] = [];
+    const toolNames: string[] = [];
+
+    for (const toolId of selectedTools) {
+      writeToolFile(projectDir, toolId, toolImports, toolNames);
+    }
+
+    // If RAG enabled for agent-app, add a rag_search tool
+    if (enableRag) {
+      toolImports.push('import { ragSearchTool } from "../tools/rag-search";');
+      toolNames.push("ragSearchTool");
+      fs.writeFileSync(
+        path.join(projectDir, "src", "tools", "rag-search.ts"),
+        generateRagSearchTool(embedModel)
+      );
+    }
+
+    const toolDescriptions = selectedTools.map((t) => AGENT_TOOLS[t]?.label || t).join(", ") + (enableRag ? ", RAG Search" : "");
+
+    // Agent definition
     fs.writeFileSync(
-      path.join(projectDir, "src", "routes", "api", "chat.ts"),
-      `// POST /api/chat — Streaming chat with conversation memory
+      path.join(projectDir, "src", "agents", "assistant.ts"),
+      `// AI Agent — autonomous assistant with tools\nimport { createAgent } from "@voltx/agents";\n${toolImports.join("\n")}\n\nexport const assistant = createAgent({\n  name: "assistant",\n  model: "${modelStr}",\n  instructions: "You are a helpful AI assistant with access to tools: ${toolDescriptions}. Use them when needed to answer questions accurately.",\n  tools: [${toolNames.join(", ")}],\n  maxIterations: 5,\n});\n`
+    );
+
+    // Agent API route
+    fs.writeFileSync(
+      path.join(projectDir, "src", "routes", "api", "agent.ts"),
+      `// POST /api/agent — Run the AI agent\nimport type { Context } from "@voltx/server";\nimport { assistant } from "../../agents/assistant";\n\nexport async function POST(c: Context) {\n  const { input } = await c.req.json();\n\n  if (!input || typeof input !== "string") {\n    return c.json({ error: "Missing 'input' field" }, 400);\n  }\n\n  const result = await assistant.run(input);\n  return c.json({\n    content: result.content,\n    steps: result.steps,\n    finishReason: result.finishReason,\n  });\n}\n`
+    );
+  }
+
+  // ── Auth routes ────────────────────────────────────────────────────────────
+  writeAuthFiles(projectDir, authChoice);
+
+  // ── .env.example ───────────────────────────────────────────────────────────
+  fs.writeFileSync(path.join(projectDir, ".env.example"), generateEnvExample(opts));
+
+  // ── .env (real, gitignored) ────────────────────────────────────────────────
+  fs.writeFileSync(path.join(projectDir, ".env"), generateEnvFile(opts));
+
+  // ── .gitignore + README ────────────────────────────────────────────────────
+  fs.writeFileSync(path.join(projectDir, ".gitignore"), "node_modules\ndist\n.env\n");
+  fs.writeFileSync(path.join(projectDir, "README.md"), generateReadme(projectName, template, pm));
+}
+
+// ─── Route generators ────────────────────────────────────────────────────────
+
+function generateChatRoute(modelStr: string): string {
+  return `// POST /api/chat — Streaming chat with conversation memory
 import type { Context } from "@voltx/server";
 import { streamText } from "@voltx/ai";
 import { createMemory } from "@voltx/memory";
 
-// In-memory for dev; swap to createMemory("postgres", { url }) for production
 const memory = createMemory({ maxMessages: 50 });
 
 export async function POST(c: Context) {
   const { messages, conversationId = "default" } = await c.req.json();
 
-  // Store the latest user message
   const lastMessage = messages[messages.length - 1];
   if (lastMessage?.role === "user") {
     await memory.add(conversationId, { role: "user", content: lastMessage.content });
   }
 
-  // Get conversation history from memory
   const history = await memory.get(conversationId);
 
   const result = await streamText({
@@ -345,34 +371,151 @@ export async function POST(c: Context) {
     messages: history.map((m) => ({ role: m.role, content: m.content })),
   });
 
-  // Store assistant response after stream completes
   result.text.then(async (text) => {
     await memory.add(conversationId, { role: "assistant", content: text });
   });
 
   return result.toSSEResponse();
 }
-`
-    );
+`;
+}
+
+function generateChatRouteWithRag(modelStr: string, embedModel: string): string {
+  return `// POST /api/chat — Streaming chat with RAG context + conversation memory
+import type { Context } from "@voltx/server";
+import { streamText } from "@voltx/ai";
+import { createMemory } from "@voltx/memory";
+import { createRAGPipeline, createEmbedder } from "@voltx/rag";
+import { createVectorStore } from "@voltx/db";
+
+const memory = createMemory({ maxMessages: 50 });
+const vectorStore = createVectorStore();
+const embedder = createEmbedder({ model: "${embedModel}" });
+const rag = createRAGPipeline({ embedder, vectorStore });
+
+export async function POST(c: Context) {
+  const { messages, conversationId = "default" } = await c.req.json();
+
+  const lastMessage = messages[messages.length - 1];
+  if (lastMessage?.role === "user") {
+    await memory.add(conversationId, { role: "user", content: lastMessage.content });
   }
 
-  // Agent-specific files (agent definition + tool + agent route)
-  if (template === "agent-app") {
-    const modelStr = `${aiProvider}:${PROVIDER_MODELS[aiProvider] ?? "llama3.1-8b"}`;
-    fs.mkdirSync(path.join(projectDir, "src", "agents"), { recursive: true });
-    fs.mkdirSync(path.join(projectDir, "src", "tools"), { recursive: true });
+  const history = await memory.get(conversationId);
 
-    // Generate tool files based on user selection
-    const toolImports: string[] = [];
-    const toolNames: string[] = [];
+  // Pull relevant context from the vector store
+  const ragContext = await rag.getContext(lastMessage?.content ?? "", { topK: 5 });
 
-    for (const toolId of selectedTools) {
-      if (toolId === "calculator") {
-        toolImports.push('import { calculatorTool } from "../tools/calculator";');
-        toolNames.push("calculatorTool");
-        fs.writeFileSync(
-          path.join(projectDir, "src", "tools", "calculator.ts"),
-          `// Calculator tool — evaluates math expressions (no API key needed)
+  const systemPrompt = ragContext
+    ? \`You are a helpful AI assistant. Use the following context to answer questions when relevant.\\n\\nContext:\\n\${ragContext}\`
+    : "You are a helpful AI assistant.";
+
+  const result = await streamText({
+    model: "${modelStr}",
+    system: systemPrompt,
+    messages: history.map((m) => ({ role: m.role, content: m.content })),
+  });
+
+  result.text.then(async (text) => {
+    await memory.add(conversationId, { role: "assistant", content: text });
+  });
+
+  return result.toSSEResponse();
+}
+`;
+}
+
+function generateRagQueryRoute(modelStr: string, embedModel: string): string {
+  return `// POST /api/rag/query — Query documents with RAG
+import type { Context } from "@voltx/server";
+import { streamText } from "@voltx/ai";
+import { createRAGPipeline, createEmbedder } from "@voltx/rag";
+import { createVectorStore } from "@voltx/db";
+
+const vectorStore = createVectorStore();
+const embedder = createEmbedder({ model: "${embedModel}" });
+const rag = createRAGPipeline({ embedder, vectorStore });
+
+export async function POST(c: Context) {
+  const { question } = await c.req.json();
+
+  const context = await rag.getContext(question, { topK: 5 });
+
+  const result = await streamText({
+    model: "${modelStr}",
+    system: \`Answer the user's question based on the following context. If the context doesn't contain relevant information, say so.\\n\\nContext:\\n\${context}\`,
+    messages: [{ role: "user", content: question }],
+  });
+
+  return result.toSSEResponse();
+}
+`;
+}
+
+function generateRagIngestRoute(embedModel: string): string {
+  return `// POST /api/rag/ingest — Ingest documents into the vector store
+import type { Context } from "@voltx/server";
+import { createRAGPipeline, createEmbedder } from "@voltx/rag";
+import { createVectorStore } from "@voltx/db";
+
+const vectorStore = createVectorStore();
+const embedder = createEmbedder({ model: "${embedModel}" });
+const rag = createRAGPipeline({ embedder, vectorStore });
+
+export async function POST(c: Context) {
+  const { text, idPrefix } = await c.req.json();
+
+  if (!text || typeof text !== "string") {
+    return c.json({ error: "Missing 'text' field" }, 400);
+  }
+
+  const result = await rag.ingest(text, idPrefix ?? "doc");
+  return c.json({ status: "ok", chunks: result.chunks, ids: result.ids });
+}
+`;
+}
+
+function generateRagSearchTool(embedModel: string): string {
+  return `// RAG Search tool — queries your knowledge base via vector similarity
+import type { Tool } from "@voltx/agents";
+import { createRAGPipeline, createEmbedder } from "@voltx/rag";
+import { createVectorStore } from "@voltx/db";
+
+const vectorStore = createVectorStore();
+const embedder = createEmbedder({ model: "${embedModel}" });
+const rag = createRAGPipeline({ embedder, vectorStore });
+
+export const ragSearchTool: Tool = {
+  name: "rag_search",
+  description: "Search your knowledge base for relevant information. Use this when the user asks about documents, files, or data that has been ingested. Ingest documents via POST /api/rag/ingest first.",
+  parameters: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "The search query to find relevant documents" },
+    },
+    required: ["query"],
+  },
+  async execute(args: { query: string }) {
+    try {
+      const context = await rag.getContext(args.query, { topK: 5 });
+      return context || "No relevant documents found. Try ingesting documents first via POST /api/rag/ingest.";
+    } catch (err) {
+      return \`RAG search failed: \${err instanceof Error ? err.message : String(err)}\`;
+    }
+  },
+};
+`;
+}
+
+// ─── Tool file writer ────────────────────────────────────────────────────────
+
+function writeToolFile(projectDir: string, toolId: string, toolImports: string[], toolNames: string[]): void {
+  const toolsDir = path.join(projectDir, "src", "tools");
+
+  if (toolId === "calculator") {
+    toolImports.push('import { calculatorTool } from "../tools/calculator";');
+    toolNames.push("calculatorTool");
+    fs.writeFileSync(path.join(toolsDir, "calculator.ts"), `// Calculator tool — evaluates math expressions (no API key needed)
 import type { Tool } from "@voltx/agents";
 
 export const calculatorTool: Tool = {
@@ -398,16 +541,13 @@ export const calculatorTool: Tool = {
     }
   },
 };
-`
-        );
-      }
+`);
+  }
 
-      if (toolId === "datetime") {
-        toolImports.push('import { datetimeTool } from "../tools/datetime";');
-        toolNames.push("datetimeTool");
-        fs.writeFileSync(
-          path.join(projectDir, "src", "tools", "datetime.ts"),
-          `// Date & time tool — returns current date, time, timezone (no API key needed)
+  if (toolId === "datetime") {
+    toolImports.push('import { datetimeTool } from "../tools/datetime";');
+    toolNames.push("datetimeTool");
+    fs.writeFileSync(path.join(toolsDir, "datetime.ts"), `// Date & time tool — returns current date, time, timezone (no API key needed)
 import type { Tool } from "@voltx/agents";
 
 export const datetimeTool: Tool = {
@@ -423,124 +563,89 @@ export const datetimeTool: Tool = {
     const now = new Date();
     const tz = args.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
     const formatted = now.toLocaleString("en-US", {
-      timeZone: tz,
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: true,
+      timeZone: tz, weekday: "long", year: "numeric", month: "long", day: "numeric",
+      hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true,
     });
     return \`Current date/time (\${tz}): \${formatted}\`;
   },
 };
-`
-        );
-      }
+`);
+  }
 
-      if (toolId === "web-search-tavily") {
-        toolImports.push('import { tavilySearchTool } from "../tools/web-search-tavily";');
-        toolNames.push("tavilySearchTool");
-        fs.writeFileSync(
-          path.join(projectDir, "src", "tools", "web-search-tavily.ts"),
-          `// Web Search tool — powered by Tavily (https://tavily.com)
+  if (toolId === "web-search-tavily") {
+    toolImports.push('import { tavilySearchTool } from "../tools/web-search-tavily";');
+    toolNames.push("tavilySearchTool");
+    fs.writeFileSync(path.join(toolsDir, "web-search-tavily.ts"), `// Web Search tool — powered by Tavily (https://tavily.com)
 // Free tier: 1,000 API credits/month — sign up at https://app.tavily.com
 import type { Tool } from "@voltx/agents";
 
 export const tavilySearchTool: Tool = {
   name: "web_search_tavily",
-  description: "Search the web for current information using Tavily. Returns relevant results with titles, URLs, and content snippets. Use this for any question about recent events, facts, or topics you're unsure about.",
+  description: "Search the web for current information using Tavily. Returns relevant results with titles, URLs, and content snippets.",
   parameters: {
     type: "object",
-    properties: {
-      query: { type: "string", description: "The search query" },
-    },
+    properties: { query: { type: "string", description: "The search query" } },
     required: ["query"],
   },
   async execute(args: { query: string }) {
     const apiKey = process.env.TAVILY_API_KEY;
     if (!apiKey) return "Error: TAVILY_API_KEY not set in .env";
-
     try {
       const res = await fetch("https://api.tavily.com/search", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          api_key: apiKey,
-          query: args.query,
-          search_depth: "basic",
-          max_results: 5,
-        }),
+        headers: { "Content-Type": "application/json", "Authorization": \`Bearer \${apiKey}\` },
+        body: JSON.stringify({ query: args.query, search_depth: "basic", max_results: 5 }),
       });
-
       if (!res.ok) return \`Search error: \${res.status} \${res.statusText}\`;
       const data = await res.json() as { results: Array<{ title: string; url: string; content: string }> };
-
-      return data.results
-        .map((r, i) => \`[\${i + 1}] \${r.title}\\n    \${r.url}\\n    \${r.content.slice(0, 200)}\`)
-        .join("\\n\\n") || "No results found.";
+      return data.results.map((r, i) => \`[\${i + 1}] \${r.title}\\n    \${r.url}\\n    \${r.content.slice(0, 200)}\`).join("\\n\\n") || "No results found.";
     } catch (err) {
       return \`Search failed: \${err instanceof Error ? err.message : String(err)}\`;
     }
   },
 };
-`
-        );
-      }
+`);
+  }
 
-      if (toolId === "web-search-serper") {
-        toolImports.push('import { serperSearchTool } from "../tools/web-search-serper";');
-        toolNames.push("serperSearchTool");
-        fs.writeFileSync(
-          path.join(projectDir, "src", "tools", "web-search-serper.ts"),
-          `// Web Search tool — powered by Serper (https://serper.dev)
+  if (toolId === "web-search-serper") {
+    toolImports.push('import { serperSearchTool } from "../tools/web-search-serper";');
+    toolNames.push("serperSearchTool");
+    fs.writeFileSync(path.join(toolsDir, "web-search-serper.ts"), `// Web Search tool — powered by Serper (https://serper.dev)
 // Free tier: 2,500 searches/month — sign up at https://serper.dev
 import type { Tool } from "@voltx/agents";
 
 export const serperSearchTool: Tool = {
   name: "web_search_serper",
-  description: "Search Google for current information using Serper. Returns relevant results with titles, URLs, and snippets. Use this for any question about recent events, facts, or topics you're unsure about.",
+  description: "Search Google for current information using Serper. Returns relevant results with titles, URLs, and snippets.",
   parameters: {
     type: "object",
-    properties: {
-      query: { type: "string", description: "The search query" },
-    },
+    properties: { query: { type: "string", description: "The search query" } },
     required: ["query"],
   },
   async execute(args: { query: string }) {
     const apiKey = process.env.SERPER_API_KEY;
     if (!apiKey) return "Error: SERPER_API_KEY not set in .env";
-
     try {
       const res = await fetch("https://google.serper.dev/search", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-API-KEY": apiKey },
         body: JSON.stringify({ q: args.query, num: 5 }),
       });
-
       if (!res.ok) return \`Search error: \${res.status} \${res.statusText}\`;
       const data = await res.json() as { organic: Array<{ title: string; link: string; snippet: string }> };
-
-      return (data.organic || [])
-        .map((r, i) => \`[\${i + 1}] \${r.title}\\n    \${r.link}\\n    \${r.snippet}\`)
-        .join("\\n\\n") || "No results found.";
+      return (data.organic || []).map((r, i) => \`[\${i + 1}] \${r.title}\\n    \${r.link}\\n    \${r.snippet}\`).join("\\n\\n") || "No results found.";
     } catch (err) {
       return \`Search failed: \${err instanceof Error ? err.message : String(err)}\`;
     }
   },
 };
-`
-        );
-      }
+`);
+  }
 
-      if (toolId === "weather") {
-        toolImports.push('import { weatherTool } from "../tools/weather";');
-        toolNames.push("weatherTool");
-        fs.writeFileSync(
-          path.join(projectDir, "src", "tools", "weather.ts"),
-          `// Weather tool — powered by OpenWeatherMap (https://openweathermap.org)
+  if (toolId === "weather") {
+    toolImports.push('import { weatherTool } from "../tools/weather";');
+    toolNames.push("weatherTool");
+    fs.writeFileSync(path.join(toolsDir, "weather.ts"), `// Weather tool — powered by OpenWeatherMap (https://openweathermap.org)
 // Free tier: 1,000 calls/day — sign up at https://openweathermap.org/api
 import type { Tool } from "@voltx/agents";
 
@@ -558,38 +663,26 @@ export const weatherTool: Tool = {
   async execute(args: { city: string; units?: string }) {
     const apiKey = process.env.OPENWEATHER_API_KEY;
     if (!apiKey) return "Error: OPENWEATHER_API_KEY not set in .env";
-
     const units = args.units || "metric";
     const unitSymbol = units === "imperial" ? "°F" : "°C";
-
     try {
       const url = \`https://api.openweathermap.org/data/2.5/weather?q=\${encodeURIComponent(args.city)}&units=\${units}&appid=\${apiKey}\`;
       const res = await fetch(url);
-
       if (!res.ok) return \`Weather error: \${res.status} — city "\${args.city}" not found or API error\`;
-      const data = await res.json() as {
-        name: string;
-        main: { temp: number; feels_like: number; humidity: number };
-        weather: Array<{ description: string }>;
-        wind: { speed: number };
-      };
-
+      const data = await res.json() as { name: string; main: { temp: number; feels_like: number; humidity: number }; weather: Array<{ description: string }>; wind: { speed: number } };
       return \`Weather in \${data.name}: \${data.main.temp}\${unitSymbol} (feels like \${data.main.feels_like}\${unitSymbol}), \${data.weather[0]?.description || "N/A"}, humidity \${data.main.humidity}%, wind \${data.wind.speed} \${units === "imperial" ? "mph" : "m/s"}\`;
     } catch (err) {
       return \`Weather fetch failed: \${err instanceof Error ? err.message : String(err)}\`;
     }
   },
 };
-`
-        );
-      }
+`);
+  }
 
-      if (toolId === "news") {
-        toolImports.push('import { newsTool } from "../tools/news";');
-        toolNames.push("newsTool");
-        fs.writeFileSync(
-          path.join(projectDir, "src", "tools", "news.ts"),
-          `// News tool — powered by NewsAPI (https://newsapi.org)
+  if (toolId === "news") {
+    toolImports.push('import { newsTool } from "../tools/news";');
+    toolNames.push("newsTool");
+    fs.writeFileSync(path.join(toolsDir, "news.ts"), `// News tool — powered by NewsAPI (https://newsapi.org)
 // Free tier: 100 requests/day for dev — sign up at https://newsapi.org/register
 import type { Tool } from "@voltx/agents";
 
@@ -606,326 +699,199 @@ export const newsTool: Tool = {
   async execute(args: { query?: string; country?: string }) {
     const apiKey = process.env.NEWS_API_KEY;
     if (!apiKey) return "Error: NEWS_API_KEY not set in .env";
-
     try {
       let url: string;
       if (args.query) {
         url = \`https://newsapi.org/v2/everything?q=\${encodeURIComponent(args.query)}&pageSize=5&sortBy=publishedAt&apiKey=\${apiKey}\`;
       } else {
-        const country = args.country || "us";
-        url = \`https://newsapi.org/v2/top-headlines?country=\${country}&pageSize=5&apiKey=\${apiKey}\`;
+        url = \`https://newsapi.org/v2/top-headlines?country=\${args.country || "us"}&pageSize=5&apiKey=\${apiKey}\`;
       }
-
       const res = await fetch(url);
       if (!res.ok) return \`News error: \${res.status} \${res.statusText}\`;
       const data = await res.json() as { articles: Array<{ title: string; source: { name: string }; url: string; description: string }> };
-
-      return (data.articles || [])
-        .map((a, i) => \`[\${i + 1}] \${a.title}\\n    Source: \${a.source?.name || "Unknown"} — \${a.url}\\n    \${(a.description || "").slice(0, 150)}\`)
-        .join("\\n\\n") || "No news found.";
+      return (data.articles || []).map((a, i) => \`[\${i + 1}] \${a.title}\\n    Source: \${a.source?.name || "Unknown"} — \${a.url}\\n    \${(a.description || "").slice(0, 150)}\`).join("\\n\\n") || "No news found.";
     } catch (err) {
       return \`News fetch failed: \${err instanceof Error ? err.message : String(err)}\`;
     }
   },
 };
-`
-        );
-      }
-    }
-
-    // Build tool instruction list for the agent
-    const toolDescriptions = selectedTools.map((t) => AGENT_TOOLS[t]?.label || t).join(", ");
-
-    // Agent definition
-    fs.writeFileSync(
-      path.join(projectDir, "src", "agents", "assistant.ts"),
-      `// AI Agent — autonomous assistant with tools
-import { createAgent } from "@voltx/agents";
-${toolImports.join("\n")}
-
-export const assistant = createAgent({
-  name: "assistant",
-  model: "${modelStr}",
-  instructions: "You are a helpful AI assistant with access to tools: ${toolDescriptions}. Use them when needed to answer questions accurately.",
-  tools: [${toolNames.join(", ")}],
-  maxIterations: 5,
-});
-`
-    );
-
-    // Agent API route
-    fs.writeFileSync(
-      path.join(projectDir, "src", "routes", "api", "agent.ts"),
-      `// POST /api/agent — Run the AI agent
-import type { Context } from "@voltx/server";
-import { assistant } from "../../agents/assistant";
-
-export async function POST(c: Context) {
-  const { input } = await c.req.json();
-
-  if (!input || typeof input !== "string") {
-    return c.json({ error: "Missing 'input' field" }, 400);
+`);
   }
-
-  const result = await assistant.run(input);
-  return c.json({
-    content: result.content,
-    steps: result.steps,
-    finishReason: result.finishReason,
-  });
 }
-`
-    );
-  }
 
-  if (template === "rag-app") {
-    const modelStr = `${aiProvider}:${PROVIDER_MODELS[aiProvider] ?? "llama3.1-8b"}`;
-    // Embeddings: use the chosen provider if it supports embeddings, otherwise fall back to OpenAI
-    const EMBEDDING_PROVIDERS: Record<string, string> = {
-      openai: "openai:text-embedding-3-small",
-      google: "google:text-embedding-004",
-      ollama: "ollama:nomic-embed-text",
-    };
-    const embedModel = EMBEDDING_PROVIDERS[aiProvider] ?? "openai:text-embedding-3-small";
-    const needsOpenAIForEmbeddings = !EMBEDDING_PROVIDERS[aiProvider];
+// ─── Auth file writer ────────────────────────────────────────────────────────
 
-    fs.mkdirSync(path.join(projectDir, "src", "routes", "api", "rag"), { recursive: true });
-    fs.writeFileSync(
-      path.join(projectDir, "src", "routes", "api", "rag", "query.ts"),
-      `// POST /api/rag/query — Query documents with RAG
-import type { Context } from "@voltx/server";
-import { streamText } from "@voltx/ai";
-import { createRAGPipeline, createEmbedder } from "@voltx/rag";
-import { createVectorStore } from "@voltx/db";
-
-const vectorStore = createVectorStore(); // swap to "pinecone" or "pgvector" for production
-const embedder = createEmbedder({ model: "${embedModel}" });${needsOpenAIForEmbeddings ? " // Note: embeddings use OpenAI (your provider doesn't support embeddings)" : ""}
-const rag = createRAGPipeline({ embedder, vectorStore });
-
-export async function POST(c: Context) {
-  const { question } = await c.req.json();
-
-  const context = await rag.getContext(question, { topK: 5 });
-
-  const result = await streamText({
-    model: "${modelStr}",
-    system: \`Answer the user's question based on the following context. If the context doesn't contain relevant information, say so.\\n\\nContext:\\n\${context}\`,
-    messages: [{ role: "user", content: question }],
-  });
-
-  return result.toSSEResponse();
-}
-`
-    );
-    fs.writeFileSync(
-      path.join(projectDir, "src", "routes", "api", "rag", "ingest.ts"),
-      `// POST /api/rag/ingest — Ingest documents into the vector store
-import type { Context } from "@voltx/server";
-import { createRAGPipeline, createEmbedder } from "@voltx/rag";
-import { createVectorStore } from "@voltx/db";
-
-const vectorStore = createVectorStore();
-const embedder = createEmbedder({ model: "${embedModel}" });${needsOpenAIForEmbeddings ? " // Note: embeddings use OpenAI" : ""}
-const rag = createRAGPipeline({ embedder, vectorStore });
-
-export async function POST(c: Context) {
-  const { text, idPrefix } = await c.req.json();
-
-  if (!text || typeof text !== "string") {
-    return c.json({ error: "Missing 'text' field" }, 400);
-  }
-
-  const result = await rag.ingest(text, idPrefix ?? "doc");
-  return c.json({ status: "ok", chunks: result.chunks, ids: result.ids });
-}
-`
-    );
-
-    // If the chosen provider doesn't support embeddings, add OPENAI_API_KEY to .env
-    if (needsOpenAIForEmbeddings) {
-      // We'll handle this in the .env generation below
-    }
-  }
-
-  // public/ directory for static files
-  fs.mkdirSync(path.join(projectDir, "public"), { recursive: true });
-
-  // Auth route files
+function writeAuthFiles(projectDir: string, authChoice: AuthChoice): void {
   if (authChoice === "better-auth") {
-    // Better Auth needs a catch-all route at /api/auth/* for sign-up, sign-in, OAuth, etc.
     fs.mkdirSync(path.join(projectDir, "src", "routes", "api", "auth"), { recursive: true });
     fs.writeFileSync(
       path.join(projectDir, "src", "routes", "api", "auth", "[...path].ts"),
-      `// ALL /api/auth/* — Better Auth handler (sign-up, sign-in, OAuth, sessions)
-import type { Context } from "@voltx/server";
-import { auth } from "../../../lib/auth";
-import { createAuthHandler } from "@voltx/auth";
-
-const handler = createAuthHandler(auth);
-
-export const GET = (c: Context) => handler(c);
-export const POST = (c: Context) => handler(c);
-`
+      `// ALL /api/auth/* — Better Auth handler (sign-up, sign-in, OAuth, sessions)\nimport type { Context } from "@voltx/server";\nimport { auth } from "../../../lib/auth";\nimport { createAuthHandler } from "@voltx/auth";\n\nconst handler = createAuthHandler(auth);\n\nexport const GET = (c: Context) => handler(c);\nexport const POST = (c: Context) => handler(c);\n`
     );
     fs.mkdirSync(path.join(projectDir, "src", "lib"), { recursive: true });
     fs.writeFileSync(
       path.join(projectDir, "src", "lib", "auth.ts"),
-      `// Auth configuration — Better Auth with DB-backed sessions
-import { createAuth, createAuthMiddleware } from "@voltx/auth";
-
-export const auth = createAuth("better-auth", {
-  database: process.env.DATABASE_URL!,
-  emailAndPassword: true,
-  // Uncomment to add OAuth providers:
-  // socialProviders: {
-  //   github: { clientId: process.env.GITHUB_CLIENT_ID!, clientSecret: process.env.GITHUB_CLIENT_SECRET! },
-  //   google: { clientId: process.env.GOOGLE_CLIENT_ID!, clientSecret: process.env.GOOGLE_CLIENT_SECRET! },
-  // },
-});
-
-export const authMiddleware = createAuthMiddleware({
-  provider: auth,
-  publicPaths: ["/api/auth", "/api/health", "/"],
-});
-`
+      `// Auth configuration — Better Auth with DB-backed sessions\nimport { createAuth, createAuthMiddleware } from "@voltx/auth";\n\nexport const auth = createAuth("better-auth", {\n  database: process.env.DATABASE_URL!,\n  emailAndPassword: true,\n});\n\nexport const authMiddleware = createAuthMiddleware({\n  provider: auth,\n  publicPaths: ["/api/auth", "/api/health", "/"],\n});\n`
     );
   } else if (authChoice === "jwt") {
     fs.mkdirSync(path.join(projectDir, "src", "lib"), { recursive: true });
     fs.writeFileSync(
       path.join(projectDir, "src", "lib", "auth.ts"),
-      `// Auth configuration — JWT (stateless)
-import { createAuth, createAuthMiddleware } from "@voltx/auth";
-
-export const jwt = createAuth("jwt", {
-  secret: process.env.JWT_SECRET!,
-  expiresIn: "7d",
-});
-
-export const authMiddleware = createAuthMiddleware({
-  provider: jwt,
-  publicPaths: ["/api/auth", "/api/health", "/"],
-});
-`
+      `// Auth configuration — JWT (stateless)\nimport { createAuth, createAuthMiddleware } from "@voltx/auth";\n\nexport const jwt = createAuth("jwt", {\n  secret: process.env.JWT_SECRET!,\n  expiresIn: "7d",\n});\n\nexport const authMiddleware = createAuthMiddleware({\n  provider: jwt,\n  publicPaths: ["/api/auth", "/api/health", "/"],\n});\n`
     );
     fs.writeFileSync(
       path.join(projectDir, "src", "routes", "api", "auth.ts"),
-      `// POST /api/auth/login — Example JWT login route
-import type { Context } from "@voltx/server";
-import { jwt } from "../../lib/auth";
-
-export async function POST(c: Context) {
-  const { email, password } = await c.req.json();
-
-  // TODO: Replace with your own user validation logic
-  if (!email || !password) {
-    return c.json({ error: "Email and password are required" }, 400);
-  }
-
-  // Sign a JWT token
-  const token = await jwt.sign({ sub: email, email });
-  return c.json({ token });
-}
-`
+      `// POST /api/auth/login — Example JWT login route\nimport type { Context } from "@voltx/server";\nimport { jwt } from "../../lib/auth";\n\nexport async function POST(c: Context) {\n  const { email, password } = await c.req.json();\n  if (!email || !password) {\n    return c.json({ error: "Email and password are required" }, 400);\n  }\n  const token = await jwt.sign({ sub: email, email });\n  return c.json({ token });\n}\n`
     );
   }
-
-  // .env.example — template-specific
-  fs.writeFileSync(path.join(projectDir, ".env.example"), generateEnvExample(template, authChoice, aiProvider));
-
-  // .env — real env file with the API key pre-filled (gitignored)
-  const envKey = PROVIDER_ENV_KEYS[aiProvider];
-  let envContent = "";
-  if (envKey && apiKey) {
-    envContent += `${envKey}=${apiKey}\n`;
-  } else if (envKey) {
-    envContent += `# ${envKey}=your-key-here\n`;
-  }
-  // RAG apps using providers without embeddings need an OpenAI key too
-  if (template === "rag-app" && !["openai", "google", "ollama"].includes(aiProvider)) {
-    envContent += `# OPENAI_API_KEY=sk-... (needed for embeddings — ${aiProvider} doesn't support them)\n`;
-  }
-  // Tool API keys (agent-app)
-  if (template === "agent-app" && selectedTools.length > 0) {
-    const toolKeysNeeded = selectedTools
-      .map((t) => AGENT_TOOLS[t])
-      .filter((d) => d?.envKey);
-    if (toolKeysNeeded.length > 0) {
-      envContent += "\n# ─── Tool API Keys ───────────────────────────────\n";
-      for (const def of toolKeysNeeded) {
-        const val = toolApiKeys[def.envKey];
-        if (val) {
-          envContent += `${def.envKey}=${val}\n`;
-        } else {
-          envContent += `# ${def.envKey}=\n`;
-        }
-      }
-    }
-  }
-  envContent += "PORT=3000\nNODE_ENV=development\n";
-  fs.writeFileSync(path.join(projectDir, ".env"), envContent);
-
-  // .gitignore
-  fs.writeFileSync(path.join(projectDir, ".gitignore"), "node_modules\ndist\n.env\n");
-
-  // README.md
-  fs.writeFileSync(path.join(projectDir, "README.md"), generateReadme(projectName, template, pm));
 }
 
-function generateConfig(projectName: string, template: string, authChoice: AuthChoice = "none", aiProvider = "cerebras"): string {
-  const hasDb = template === "rag-app" || template === "agent-app" || authChoice === "better-auth";
-  const provider = aiProvider;
+// ─── Config generator ────────────────────────────────────────────────────────
+
+function generateConfig(projectName: string, template: string, authChoice: AuthChoice, aiProvider: string, enableRag: boolean): string {
+  const hasDb = template === "rag-app" || template === "agent-app" || authChoice === "better-auth" || enableRag;
   const model = PROVIDER_MODELS[aiProvider] ?? "llama3.1-8b";
 
-  let config = `import { defineConfig } from "@voltx/core";\n\nexport default defineConfig({\n  name: "${projectName}",\n  port: 3000,\n  ai: {\n    provider: "${provider}",\n    model: "${model}",\n  },`;
-
-  if (hasDb) {
-    config += `\n  db: {\n    url: process.env.DATABASE_URL,\n  },`;
-  }
-
-  if (authChoice !== "none") {
-    config += `\n  auth: {\n    provider: "${authChoice}",\n  },`;
-  }
-
+  let config = `import { defineConfig } from "@voltx/core";\n\nexport default defineConfig({\n  name: "${projectName}",\n  port: 3000,\n  ai: {\n    provider: "${aiProvider}",\n    model: "${model}",\n  },`;
+  if (hasDb) config += `\n  db: {\n    url: process.env.DATABASE_URL,\n  },`;
+  if (authChoice !== "none") config += `\n  auth: {\n    provider: "${authChoice}",\n  },`;
   config += `\n  server: {\n    routesDir: "src/routes",\n    staticDir: "public",\n    cors: true,\n  },\n});\n`;
-
   return config;
 }
 
-function generateEnvExample(template: string, authChoice: AuthChoice = "none", aiProvider = "cerebras"): string {
+// ─── Env generators ──────────────────────────────────────────────────────────
+
+function collectRequiredKeys(opts: ScaffoldOptions): Array<{ envVar: string; label: string; hint: string }> {
+  const keys: Array<{ envVar: string; label: string; hint: string }> = [];
+  const { template, aiProvider, enableRag, embeddingProvider, selectedTools, authChoice } = opts;
+
+  // Provider key
+  const provKey = PROVIDER_ENV_KEYS[aiProvider];
+  if (provKey) keys.push({ envVar: provKey, label: `${aiProvider} API key`, hint: "" });
+
+  // Embedding provider key (if different from main provider)
+  if (enableRag && !EMBEDDING_CAPABLE.has(aiProvider)) {
+    const embedKey = PROVIDER_ENV_KEYS[embeddingProvider];
+    if (embedKey && embedKey !== provKey) {
+      keys.push({ envVar: embedKey, label: `${embeddingProvider} API key (for embeddings)`, hint: "" });
+    }
+  }
+
+  // Tool keys (agent-app)
+  if (template === "agent-app") {
+    for (const toolId of selectedTools) {
+      const def = AGENT_TOOLS[toolId];
+      if (def?.envKey) keys.push({ envVar: def.envKey, label: `${def.label} API key`, hint: def.envHint });
+    }
+  }
+
+  // Auth keys
+  if (authChoice === "better-auth") {
+    keys.push({ envVar: "BETTER_AUTH_SECRET", label: "Better Auth secret (min 32 chars)", hint: "" });
+  } else if (authChoice === "jwt") {
+    keys.push({ envVar: "JWT_SECRET", label: "JWT secret key", hint: "" });
+  }
+
+  return keys;
+}
+
+function generateEnvFile(opts: ScaffoldOptions): string {
+  const keys = collectRequiredKeys(opts);
+  let env = "";
+  for (const k of keys) {
+    const val = opts.apiKeys[k.envVar];
+    if (val) {
+      env += `${k.envVar}=${val}\n`;
+    } else {
+      env += `# ${k.envVar}=\n`;
+    }
+  }
+  env += "PORT=3000\nNODE_ENV=development\n";
+  return env;
+}
+
+function generateEnvExample(opts: ScaffoldOptions): string {
+  const { template, aiProvider, enableRag, embeddingProvider, selectedTools, authChoice } = opts;
   let env = "";
 
-  const envKey = PROVIDER_ENV_KEYS[aiProvider];
-  if (envKey) {
-    env += `# ─── LLM Provider ────────────────────────────────\n${envKey}=your-key-here\n\n`;
+  // Provider
+  const provKey = PROVIDER_ENV_KEYS[aiProvider];
+  if (provKey) {
+    env += `# ─── LLM Provider ────────────────────────────────\n${provKey}=your-key-here\n\n`;
   } else {
     env += "# ─── LLM Provider (Ollama — no key needed) ───────\n# OLLAMA_BASE_URL=http://localhost:11434\n\n";
   }
 
-  if (template === "rag-app") {
-    env += "# ─── Database (Neon Postgres) ────────────────────\nDATABASE_URL=postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/dbname?sslmode=require\n\n";
-    env += "# ─── Vector Database (Pinecone) ──────────────────\nPINECONE_API_KEY=pc-...\nPINECONE_INDEX=voltx-embeddings\n\n";
-  } else if (template === "agent-app") {
-    env += "# ─── Database (Neon Postgres — optional) ─────────\nDATABASE_URL=\n\n";
-    env += "# ─── Tool API Keys (add keys for tools you selected) ─\n";
-    env += "# TAVILY_API_KEY=tvly-...       (Web Search — https://tavily.com)\n";
-    env += "# SERPER_API_KEY=               (Google Search — https://serper.dev)\n";
-    env += "# OPENWEATHER_API_KEY=          (Weather — https://openweathermap.org/api)\n";
-    env += "# NEWS_API_KEY=                 (News — https://newsapi.org)\n\n";
+  // Embedding provider (if separate)
+  if (enableRag && !EMBEDDING_CAPABLE.has(aiProvider)) {
+    const embedKey = PROVIDER_ENV_KEYS[embeddingProvider];
+    if (embedKey && embedKey !== provKey) {
+      env += `# ─── Embedding Provider (${embeddingProvider}) ──────────────────\n${embedKey}=your-key-here\n\n`;
+    }
   }
 
-  // Auth env vars
-  if (authChoice === "better-auth") {
-    env += "# ─── Auth (Better Auth) ──────────────────────────\nBETTER_AUTH_SECRET=your-secret-key-min-32-chars-here\nBETTER_AUTH_URL=http://localhost:3000\n";
-    if (template !== "rag-app" && template !== "agent-app") {
-      env += "DATABASE_URL=postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/dbname?sslmode=require\n";
+  // Database
+  if (template === "rag-app" || enableRag || template === "agent-app" || authChoice === "better-auth") {
+    env += "# ─── Database (Neon Postgres — optional) ─────────\nDATABASE_URL=\n\n";
+  }
+
+  // Tool keys
+  if (template === "agent-app" && selectedTools.length > 0) {
+    const toolsWithKeys = selectedTools.map((t) => AGENT_TOOLS[t]).filter((d) => d?.envKey);
+    if (toolsWithKeys.length > 0) {
+      env += "# ─── Tool API Keys ───────────────────────────────\n";
+      for (const def of toolsWithKeys) {
+        env += `# ${def.envKey}=          (${def.label})\n`;
+      }
+      env += "\n";
     }
-    env += "# GITHUB_CLIENT_ID=\n# GITHUB_CLIENT_SECRET=\n# GOOGLE_CLIENT_ID=\n# GOOGLE_CLIENT_SECRET=\n\n";
+  }
+
+  // Auth
+  if (authChoice === "better-auth") {
+    env += "# ─── Auth (Better Auth) ──────────────────────────\nBETTER_AUTH_SECRET=your-secret-key-min-32-chars-here\nBETTER_AUTH_URL=http://localhost:3000\n\n";
   } else if (authChoice === "jwt") {
     env += "# ─── Auth (JWT) ──────────────────────────────────\nJWT_SECRET=your-jwt-secret-key\n\n";
   }
 
   env += "# ─── App ─────────────────────────────────────────\nPORT=3000\nNODE_ENV=development\n";
   return env;
+}
+
+// ─── README generator ────────────────────────────────────────────────────────
+
+function generateReadme(projectName: string, template: string, pm: PkgManager): string {
+  return `# ${projectName}
+
+Built with [VoltX](https://voltx.dev) — the AI-first full-stack framework.
+
+Template: **${template}**
+
+## Getting Started
+
+\`\`\`bash
+${installCommand(pm)}
+${runCommand(pm)} dev
+\`\`\`
+
+## Generate Code
+
+\`\`\`bash
+npx voltx generate route api/users
+npx voltx generate agent assistant
+npx voltx generate tool search
+npx voltx generate job cleanup
+\`\`\`
+
+## Configuration
+
+Edit \`voltx.config.ts\` to configure your AI provider, database, and auth settings.
+Edit \`.env\` to add your API keys.
+
+## Learn More
+
+- [GitHub](https://github.com/codewithshail/voltx)
+`;
 }
 
 // ─── Git init ────────────────────────────────────────────────────────────────
@@ -968,194 +934,217 @@ async function main() {
 
     const s = p.spinner();
     s.start("Creating your VoltX project...");
-    scaffold(projectDir, projectName, template, pm, authChoice);
+    scaffold({
+      projectDir, projectName, template, pm, authChoice,
+      aiProvider: "cerebras", enableRag: false, embeddingProvider: "openai",
+      selectedTools: template === "agent-app" ? ["calculator", "datetime"] : [],
+      apiKeys: {},
+    });
     s.stop("Project created!");
 
     s.start("Installing dependencies...");
-    try {
-      execSync(installCommand(pm), { cwd: projectDir, stdio: "ignore" });
-      s.stop("Dependencies installed!");
-    } catch {
-      s.stop(`Failed to install — run ${installCommand(pm)} manually.`);
-    }
+    try { execSync(installCommand(pm), { cwd: projectDir, stdio: "ignore" }); s.stop("Dependencies installed!"); }
+    catch { s.stop(`Failed to install — run ${installCommand(pm)} manually.`); }
 
     s.start("Initializing git...");
     const gitOk = tryGitInit(projectDir);
-    s.stop(gitOk ? "Git initialized!" : "Git init skipped (git not available).");
+    s.stop(gitOk ? "Git initialized!" : "Git init skipped.");
 
     printOutro(projectName, pm, true);
     return;
   }
 
-  // Interactive mode
-  const project = await p.group(
-    {
-      name: () =>
-        p.text({
-          message: "What is your project name?",
-          placeholder: "my-voltx-app",
-          initialValue: parsed.projectName,
-          validate: (val) => {
-            if (!val.trim()) return "Project name is required";
-            if (fs.existsSync(path.resolve(process.cwd(), val))) return `Directory "${val}" already exists`;
-          },
-        }),
-      template: () =>
-        p.select({
-          message: "Which template would you like?",
-          initialValue: parsed.template,
-          options: Object.entries(TEMPLATES).map(([value, { label, hint }]) => ({
-            value,
-            label,
-            hint,
-          })),
-        }),
-      aiProvider: ({ results }) => {
-        const tmpl = results.template as string;
-        if (tmpl === "blank") return Promise.resolve("cerebras");
+  // ── Interactive mode ─────────────────────────────────────────────────────
 
-        // RAG needs embeddings — only OpenAI, Google, and Ollama support them
-        const isRag = tmpl === "rag-app";
+  // Helper to bail on cancel
+  function bail(val: unknown): void {
+    if (p.isCancel(val)) { p.cancel("Setup cancelled."); process.exit(0); }
+  }
 
-        const allProviders = [
-          { value: "cerebras", label: "Cerebras", hint: "Free tier, fast inference (Llama models)" },
-          { value: "openai", label: "OpenAI", hint: "GPT-4o, GPT-4o-mini" },
-          { value: "anthropic", label: "Anthropic", hint: "Claude Sonnet, Claude Opus" },
-          { value: "google", label: "Google AI", hint: "Gemini Pro, Gemini Flash" },
-          { value: "openrouter", label: "OpenRouter", hint: "Access 100+ models via one API" },
-          { value: "ollama", label: "Ollama", hint: "Local models, no API key needed" },
-        ];
-
-        const EMBEDDING_PROVIDERS = ["openai", "google", "ollama"];
-        const options = isRag
-          ? allProviders.filter((opt) => EMBEDDING_PROVIDERS.includes(opt.value))
-          : allProviders;
-
-        return p.select({
-          message: isRag
-            ? "Which AI provider? (RAG requires embedding support)"
-            : "Which AI provider?",
-          initialValue: isRag ? "openai" : "cerebras",
-          options,
-        });
-      },
-      apiKey: ({ results }) => {
-        const prov = results.aiProvider as string;
-        if (prov === "ollama") return Promise.resolve("");
-        const envVar = PROVIDER_ENV_KEYS[prov] ?? `${prov.toUpperCase()}_API_KEY`;
-        return p.password({
-          message: `Enter your ${prov} API key (${envVar}):`,
-          mask: "▪",
-          validate: () => undefined, // optional
-        });
-      },
-      tools: ({ results }) => {
-        if (results.template !== "agent-app") return Promise.resolve(["calculator", "datetime"]);
-        return p.multiselect({
-          message: "Which tools should your agent have?",
-          initialValues: ["calculator", "datetime"],
-          options: Object.entries(AGENT_TOOLS).map(([value, { label, hint }]) => ({
-            value,
-            label,
-            hint,
-          })),
-          required: true,
-        });
-      },
-      auth: () =>
-        p.select({
-          message: "Authentication?",
-          initialValue: parsed.auth ?? "none",
-          options: [
-            { value: "better-auth", label: "Better Auth", hint: "Full-featured — email/password, OAuth, DB sessions" },
-            { value: "jwt", label: "JWT", hint: "Stateless token-based auth" },
-            { value: "none", label: "None", hint: "Skip auth setup" },
-          ],
-        }),
-      packageManager: () =>
-        p.select({
-          message: "Which package manager do you use?",
-          initialValue: parsed.pkgManager ?? detectPackageManager(),
-          options: [
-            { value: "npm", label: "npm" },
-            { value: "pnpm", label: "pnpm" },
-            { value: "yarn", label: "yarn" },
-            { value: "bun", label: "bun" },
-          ],
-        }),
-      install: () =>
-        p.confirm({
-          message: "Install dependencies?",
-          initialValue: true,
-        }),
-      gitInit: () =>
-        p.confirm({
-          message: "Initialize a git repository?",
-          initialValue: true,
-        }),
+  // 1. Project name
+  const projectName = await p.text({
+    message: "What is your project name?",
+    placeholder: "my-voltx-app",
+    initialValue: parsed.projectName,
+    validate: (val) => {
+      if (!val.trim()) return "Project name is required";
+      if (fs.existsSync(path.resolve(process.cwd(), val))) return `Directory "${val}" already exists`;
     },
-    {
-      onCancel: () => {
-        p.cancel("Setup cancelled.");
-        process.exit(0);
-      },
-    }
-  );
+  });
+  bail(projectName);
 
-  const s = p.spinner();
-  const projectName = project.name as string;
-  const template = project.template as string;
-  const pm = project.packageManager as PkgManager;
-  const authChoice = (project.auth as AuthChoice) ?? "none";
-  const aiProvider = (project.aiProvider as string) ?? "cerebras";
-  const apiKey = (project.apiKey as string) ?? "";
-  const selectedTools = (project.tools as string[]) ?? ["calculator", "datetime"];
-  const projectDir = path.resolve(process.cwd(), projectName);
+  // 2. Template
+  const template = await p.select({
+    message: "Which template would you like?",
+    initialValue: parsed.template,
+    options: Object.entries(TEMPLATES).map(([value, { label, hint }]) => ({ value, label, hint })),
+  });
+  bail(template);
 
-  // Ask for API keys for tools that need them (only for agent-app)
-  const toolApiKeys: Record<string, string> = {};
-  if (template === "agent-app") {
-    for (const toolId of selectedTools) {
-      const def = AGENT_TOOLS[toolId];
-      if (def?.envKey) {
-        const key = await p.password({
-          message: `Enter your ${def.label} API key (${def.envKey}):`,
+  const tmpl = template as string;
+  const needsAI = tmpl !== "blank";
+  const isRagTemplate = tmpl === "rag-app";
+
+  // 3. AI Provider (skip for blank)
+  let aiProvider = "cerebras";
+  if (needsAI) {
+    // For rag-app, only show embedding-capable providers
+    const providerOptions = isRagTemplate
+      ? ALL_PROVIDERS.filter((opt) => EMBEDDING_CAPABLE.has(opt.value))
+      : ALL_PROVIDERS;
+
+    const prov = await p.select({
+      message: isRagTemplate
+        ? "Which AI provider? (RAG requires embedding support)"
+        : "Which AI provider?",
+      initialValue: isRagTemplate ? "openai" : "cerebras",
+      options: providerOptions,
+    });
+    bail(prov);
+    aiProvider = prov as string;
+  }
+
+  // 4. Tools (agent-app only)
+  let selectedTools: string[] = [];
+  if (tmpl === "agent-app") {
+    const tools = await p.multiselect({
+      message: "Which tools should your agent have?",
+      initialValues: ["calculator", "datetime"],
+      options: Object.entries(AGENT_TOOLS).map(([value, { label, hint }]) => ({ value, label, hint })),
+      required: true,
+    });
+    bail(tools);
+    selectedTools = tools as string[];
+  }
+
+  // 5. Enable RAG? (chatbot/agent-app only, skip for rag-app and blank)
+  let enableRag = isRagTemplate; // rag-app always has RAG
+  if (tmpl === "chatbot" || tmpl === "agent-app") {
+    const ragChoice = await p.confirm({
+      message: tmpl === "agent-app"
+        ? "Enable RAG? (adds a rag_search tool + /api/rag/ingest route)"
+        : "Enable RAG? (chat will use your knowledge base for context)",
+      initialValue: false,
+    });
+    bail(ragChoice);
+    enableRag = ragChoice as boolean;
+  }
+
+  // 6. Embedding provider (if RAG enabled + main provider has no embeddings)
+  let embeddingProvider = "openai";
+  if (enableRag && !EMBEDDING_CAPABLE.has(aiProvider)) {
+    const embedProv = await p.select({
+      message: `${aiProvider} doesn't support embeddings. Pick an embedding provider:`,
+      initialValue: "openai",
+      options: ALL_PROVIDERS.filter((opt) => EMBEDDING_CAPABLE.has(opt.value)),
+    });
+    bail(embedProv);
+    embeddingProvider = embedProv as string;
+  } else if (enableRag) {
+    embeddingProvider = aiProvider;
+  }
+
+  // 7. Auth
+  const authChoice = await p.select({
+    message: "Authentication?",
+    initialValue: parsed.auth ?? "none",
+    options: [
+      { value: "better-auth", label: "Better Auth", hint: "Full-featured — email/password, OAuth, DB sessions" },
+      { value: "jwt", label: "JWT", hint: "Stateless token-based auth" },
+      { value: "none", label: "None", hint: "Skip auth setup" },
+    ],
+  });
+  bail(authChoice);
+
+  // 8. Package manager
+  const packageManager = await p.select({
+    message: "Which package manager do you use?",
+    initialValue: parsed.pkgManager ?? detectPackageManager(),
+    options: [
+      { value: "npm", label: "npm" },
+      { value: "pnpm", label: "pnpm" },
+      { value: "yarn", label: "yarn" },
+      { value: "bun", label: "bun" },
+    ],
+  });
+  bail(packageManager);
+
+  const pm = packageManager as PkgManager;
+
+  // ── Build the list of required API keys ──────────────────────────────────
+  const scaffoldOpts: ScaffoldOptions = {
+    projectDir: path.resolve(process.cwd(), projectName as string),
+    projectName: projectName as string,
+    template: tmpl,
+    pm,
+    authChoice: (authChoice as AuthChoice) ?? "none",
+    aiProvider,
+    enableRag,
+    embeddingProvider,
+    selectedTools,
+    apiKeys: {},
+  };
+
+  const requiredKeys = collectRequiredKeys(scaffoldOpts);
+
+  // 9. API keys toggle
+  const apiKeys: Record<string, string> = {};
+  if (requiredKeys.length > 0) {
+    const enterKeys = await p.confirm({
+      message: `You need ${requiredKeys.length} API key${requiredKeys.length > 1 ? "s" : ""}. Enter them now?`,
+      initialValue: true,
+    });
+    bail(enterKeys);
+
+    if (enterKeys) {
+      for (const k of requiredKeys) {
+        const val = await p.password({
+          message: `${k.label} (${k.envVar}):`,
           mask: "▪",
           validate: () => undefined,
         });
-        if (p.isCancel(key)) {
-          p.cancel("Setup cancelled.");
-          process.exit(0);
-        }
-        if (key) toolApiKeys[def.envKey] = key as string;
+        bail(val);
+        if (val) apiKeys[k.envVar] = val as string;
       }
+    } else {
+      // Show summary of what keys they need
+      p.note(
+        requiredKeys.map((k) => `  ${k.envVar}  — ${k.label}`).join("\n"),
+        "Add these to your .env file"
+      );
     }
   }
 
-  // Scaffold
+  scaffoldOpts.apiKeys = apiKeys;
+
+  // 10. Install
+  const doInstall = await p.confirm({ message: "Install dependencies?", initialValue: true });
+  bail(doInstall);
+
+  // 11. Git
+  const doGit = await p.confirm({ message: "Initialize a git repository?", initialValue: true });
+  bail(doGit);
+
+  // ── Execute ──────────────────────────────────────────────────────────────
+  const s = p.spinner();
+
   s.start("Creating your VoltX project...");
-  scaffold(projectDir, projectName, template, pm, authChoice, aiProvider, apiKey, selectedTools, toolApiKeys);
+  scaffold(scaffoldOpts);
   s.stop("Project created!");
 
-  // Install deps
-  if (project.install) {
+  if (doInstall) {
     s.start("Installing dependencies...");
-    try {
-      execSync(installCommand(pm), { cwd: projectDir, stdio: "ignore" });
-      s.stop("Dependencies installed!");
-    } catch {
-      s.stop(`Failed to install — run ${installCommand(pm)} manually.`);
-    }
+    try { execSync(installCommand(pm), { cwd: scaffoldOpts.projectDir, stdio: "ignore" }); s.stop("Dependencies installed!"); }
+    catch { s.stop(`Failed to install — run ${installCommand(pm)} manually.`); }
   }
 
-  // Git init
-  if (project.gitInit) {
+  if (doGit) {
     s.start("Initializing git...");
-    const gitOk = tryGitInit(projectDir);
-    s.stop(gitOk ? "Git initialized!" : "Git init skipped (git not available).");
+    const gitOk = tryGitInit(scaffoldOpts.projectDir);
+    s.stop(gitOk ? "Git initialized!" : "Git init skipped.");
   }
 
-  printOutro(projectName, pm, !!project.install);
+  printOutro(projectName as string, pm, !!doInstall);
 }
 
 function printOutro(projectName: string, pm: PkgManager, installed: boolean) {
