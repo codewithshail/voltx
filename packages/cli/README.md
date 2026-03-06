@@ -11,7 +11,7 @@
 
 ---
 
-Command-line tools for the [VoltX](https://github.com/codewithshail/voltx) framework. Scaffold new projects, run the dev server, and build for production.
+Command-line tools for the [VoltX](https://github.com/codewithshail/voltx) framework. Scaffold projects, run the dev server, build for production, and generate code.
 
 ## Installation
 
@@ -22,10 +22,18 @@ npm install -g @voltx/cli
 Or use directly with npx:
 
 ```bash
-npx @voltx/cli create my-app
+npx @voltx/cli dev
 ```
 
 ## Commands
+
+### Development
+
+```bash
+voltx dev          # Start dev server with hot reload
+voltx build        # Build for production
+voltx start        # Start production server
+```
 
 ### Create a New Project
 
@@ -36,14 +44,27 @@ voltx create my-app --template rag-app
 voltx create my-app --template agent-app
 ```
 
-### Available Templates
+> For the full interactive experience with tool selection, RAG toggle, and API key management, use `npx create-voltx-app` instead.
 
-| Template | Description |
-|----------|-------------|
-| `blank` | Minimal server with file-based routing |
-| `chatbot` | Streaming chat with AI + conversation memory |
-| `rag-app` | Document Q&A with embeddings + vector search |
-| `agent-app` | Autonomous agent with tools + memory |
+### Code Generation
+
+```bash
+voltx generate route api/users      # New API route
+voltx generate agent assistant       # New agent definition
+voltx generate tool search           # New tool for agents
+voltx generate job cleanup           # New background job
+```
+
+## Templates
+
+| Template | What you get | Frontend UI |
+|----------|-------------|-------------|
+| `blank` | Minimal server with file-based routing | — |
+| `chatbot` | Streaming chat + memory | Chat interface |
+| `rag-app` | Document Q&A + vector search | Ingest + query split view |
+| `agent-app` | AI agent with calculator + datetime tools | Chat with tool steps |
+
+All non-blank templates include a `public/index.html` with a dark-theme Tailwind CSS UI that connects to the backend API routes.
 
 ## Programmatic Usage
 
@@ -53,6 +74,7 @@ import { createProject } from "@voltx/cli";
 await createProject({
   name: "my-app",
   template: "chatbot",
+  auth: "jwt",
 });
 ```
 
