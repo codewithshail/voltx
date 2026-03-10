@@ -1,6 +1,6 @@
 {
   "name": "@voltx/core",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "VoltX framework engine — config loader, plugin system, runtime",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

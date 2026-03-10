@@ -13,9 +13,9 @@ export interface CreateProjectOptions {
 }
 
 const VV: Record<string, string> = {
-  "@voltx/core": "^0.3.1",
+  "@voltx/core": "^0.3.2",
   "@voltx/server": "^0.3.1",
-  "@voltx/cli": "^0.3.6",
+  "@voltx/cli": "^0.3.7",
   "@voltx/ai": "^0.3.0",
   "@voltx/agents": "^0.3.1",
   "@voltx/memory": "^0.3.0",

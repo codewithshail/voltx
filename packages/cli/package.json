@@ -1,6 +1,6 @@
 {
   "name": "@voltx/cli",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "VoltX CLI — dev server, build, start, generate, and scaffolding",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,7 +21,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@voltx/core": "^0.3.1"
+    "@voltx/core": "^0.3.2"
   },
   "peerDependencies": {
     "tsx": ">=4.0.0",
