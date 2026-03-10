@@ -93,7 +93,7 @@ function parseArgs(argv: string[]) {
 
 const VOLTX_VERSIONS: Record<string, string> = {
   "@voltx/core": "^0.3.2",
-  "@voltx/server": "^0.3.1",
+  "@voltx/server": "^0.3.2",
   "@voltx/cli": "^0.3.7",
   "@voltx/ai": "^0.3.0",
   "@voltx/agents": "^0.3.1",

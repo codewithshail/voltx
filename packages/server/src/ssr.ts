@@ -86,9 +86,10 @@ export function registerSSR(
         const mod = await import(ssrBundlePath);
         render = mod.render as (url: string) => Promise<ReadableStream>;
       } else {
-        // Development under @hono/vite-dev-server: dynamic import is
-        // intercepted by Vite's module graph, giving us HMR for free
-        const mod = await import(/* @vite-ignore */ resolve(process.cwd(), entryServer));
+        // Development under @hono/vite-dev-server: use a bare specifier
+        // so Vite's SSR module loader intercepts the import and handles
+        // .tsx transform + HMR. Absolute paths bypass Vite and hit Node directly.
+        const mod = await import(/* @vite-ignore */ "/" + entryServer);
         render = mod.render as (url: string) => Promise<ReadableStream>;
       }
 
