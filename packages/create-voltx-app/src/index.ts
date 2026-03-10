@@ -94,7 +94,7 @@ function parseArgs(argv: string[]) {
 const VOLTX_VERSIONS: Record<string, string> = {
   "@voltx/core": "^0.3.1",
   "@voltx/server": "^0.3.1",
-  "@voltx/cli": "^0.3.5",
+  "@voltx/cli": "^0.3.6",
   "@voltx/ai": "^0.3.0",
   "@voltx/agents": "^0.3.1",
   "@voltx/memory": "^0.3.0",
@@ -263,12 +263,15 @@ function scaffold(opts: ScaffoldOptions): void {
     deps["lucide-react"] = "^0.468.0";
   }
 
+  // @voltx/cli is a dev tool — keep it in devDependencies so the bin links correctly
+  devDeps["@voltx/cli"] = vv("@voltx/cli");
+
   const pkg = {
     name: projectName,
     version: "0.1.0",
     private: true,
-    scripts: { dev: "voltx dev", build: "voltx build", start: "voltx start" },
-    dependencies: { ...deps, "@voltx/cli": vv("@voltx/cli") },
+    scripts: { dev: "npx voltx dev", build: "npx voltx build", start: "npx voltx start" },
+    dependencies: deps,
     devDependencies: devDeps,
   };
   fs.writeFileSync(path.join(projectDir, "package.json"), JSON.stringify(pkg, null, 2));

@@ -15,7 +15,7 @@ export interface CreateProjectOptions {
 const VV: Record<string, string> = {
   "@voltx/core": "^0.3.1",
   "@voltx/server": "^0.3.1",
-  "@voltx/cli": "^0.3.5",
+  "@voltx/cli": "^0.3.6",
   "@voltx/ai": "^0.3.0",
   "@voltx/agents": "^0.3.1",
   "@voltx/memory": "^0.3.0",
@@ -74,9 +74,13 @@ export async function createProject(options: CreateProjectOptions): Promise<void
     deps["lucide-react"] = "^0.468.0";
   }
 
+  // @voltx/cli is a dev tool — move it to devDependencies so the bin links correctly
+  devDeps["@voltx/cli"] = deps["@voltx/cli"] ?? v("@voltx/cli");
+  delete deps["@voltx/cli"];
+
   fs.writeFileSync(path.join(targetDir, "package.json"), JSON.stringify({
     name, version: "0.1.0", private: true,
-    scripts: { dev: "voltx dev", build: "voltx build", start: "voltx start" },
+    scripts: { dev: "npx voltx dev", build: "npx voltx build", start: "npx voltx start" },
     dependencies: deps,
     devDependencies: devDeps,
   }, null, 2));
