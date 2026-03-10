@@ -1,11 +1,11 @@
 // @voltx/server — File-based route scanner
 // Scans a directory for route files and registers them on the Hono app.
 //
-// Convention:
-//   src/routes/api/chat.ts       → /api/chat
-//   src/routes/api/users/[id].ts → /api/users/:id
-//   src/routes/index.ts          → /
-//   src/routes/api/agents/[name]/index.ts → /api/agents/:name
+// Convention (routesDir = "api"):
+//   api/chat.ts              → /api/chat
+//   api/users/[id].ts        → /api/users/:id
+//   api/index.ts             → /api
+//   api/agents/[name]/index.ts → /api/agents/:name
 //
 // Each file exports HTTP method handlers: GET, POST, PUT, DELETE, PATCH, etc.
 // Optionally exports `middleware` for per-route middleware.
@@ -108,11 +108,11 @@ async function collectRouteFiles(dir: string): Promise<string[]> {
 /**
  * Convert a file path to a URL path.
  *
- * Examples:
- *   routes/index.ts           → /
- *   routes/api/chat.ts        → /api/chat
- *   routes/api/users/[id].ts  → /api/users/:id
- *   routes/api/[...slug].ts   → /api/*
+ * Examples (routesDir = "api"):
+ *   api/index.ts             → /api
+ *   api/chat.ts              → /api/chat
+ *   api/users/[id].ts        → /api/users/:id
+ *   api/[...slug].ts         → /api/*
  */
 export function filePathToUrlPath(filePath: string, routesDir: string): string {
   let rel = relative(routesDir, filePath);
@@ -125,8 +125,8 @@ export function filePathToUrlPath(filePath: string, routesDir: string): string {
   rel = rel.replace(/\\/g, "/");
 
   // Remove trailing /index
-  if (rel === "index") return "/";
-  if (rel.endsWith("/index")) {
+  if (rel === "index") rel = "";
+  else if (rel.endsWith("/index")) {
     rel = rel.slice(0, -"/index".length);
   }
 
@@ -136,7 +136,12 @@ export function filePathToUrlPath(filePath: string, routesDir: string): string {
   // Convert [...slug] → * (catch-all)
   rel = rel.replace(/\[\.\.\.([^\]]+)\]/g, "*");
 
-  return "/" + rel;
+  // Derive prefix from the routesDir basename (e.g., "api" → "/api")
+  const dirBasename = routesDir.replace(/\\/g, "/").split("/").pop() ?? "";
+  const prefix = dirBasename && dirBasename !== "routes" && dirBasename !== "src" ? `/${dirBasename}` : "";
+
+  if (!rel) return prefix || "/";
+  return `${prefix}/${rel}`;
 }
 
 /**

@@ -1,14 +1,16 @@
 // @voltx/cli — Dev server with hot reload
-// Uses tsx watch to run the app entry point with automatic restarts on file changes.
+// Full-stack mode: Vite + Hono unified (when vite.config.ts or server.ts exists)
+// API-only mode: tsx watch (when no frontend)
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { resolve, join } from "node:path";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, writeFileSync, unlinkSync } from "node:fs";
+import { loadEnv } from "@voltx/core";
 
 export interface DevOptions {
   /** Port override (reads from voltx.config.ts or env if not set) */
   port?: number;
-  /** Entry file (default: src/index.ts) */
+  /** Entry file (default: server.ts) */
   entry?: string;
   /** Extra directories to watch */
   watch?: string[];
@@ -17,10 +19,12 @@ export interface DevOptions {
 }
 
 /**
- * Start the VoltX dev server with hot reload.
+ * Start the VoltX dev server.
  *
- * Spawns `tsx watch` on the app entry point. tsx handles TypeScript
- * compilation and automatic restarts when files change.
+ * Detects whether the project is full-stack (has vite.config.ts or server.ts).
+ * - If yes: starts Vite with @hono/vite-dev-server plugin — one process,
+ *   one port, frontend HMR + backend API routes together.
+ * - If no: spawns tsx watch for fast API-only development.
  */
 export async function runDev(options: DevOptions = {}): Promise<void> {
   const cwd = process.cwd();
@@ -31,7 +35,7 @@ export async function runDev(options: DevOptions = {}): Promise<void> {
   } = options;
 
   if (!entry) {
-    console.error("[voltx] Could not find entry point. Expected src/index.ts or src/index.js");
+    console.error("[voltx] Could not find entry point. Expected server.ts or src/index.ts");
     process.exit(1);
   }
 
@@ -41,79 +45,188 @@ export async function runDev(options: DevOptions = {}): Promise<void> {
     process.exit(1);
   }
 
-  // Load .env file if it exists
-  const envFile = resolve(cwd, ".env");
+  // Load .env files with proper precedence
+  loadEnv("development", cwd);
+
+  // Full-stack if vite.config.ts exists or server.ts exists (Hono + React)
+  const hasViteConfig = existsSync(resolve(cwd, "vite.config.ts"));
+  const hasServerEntry = existsSync(resolve(cwd, "server.ts"));
+  const isFullStack = hasViteConfig || hasServerEntry;
+
+  if (isFullStack) {
+    await startViteDevServer(cwd, port, entry, options);
+  } else {
+    await startTsxWatch(cwd, port, entry, options);
+  }
+}
+
+
+// ─── Full-stack mode: Vite + Hono ────────────────────────────────────────────
+
+/**
+ * Start Vite dev server with @hono/vite-dev-server plugin.
+ * This gives us:
+ * - Frontend HMR (instant updates, no page reload for CSS/React)
+ * - Backend hot reload (Hono routes reloaded via Vite's module graph)
+ * - One process, one port
+ */
+async function startViteDevServer(
+  cwd: string,
+  port: number | undefined,
+  entry: string,
+  options: DevOptions,
+): Promise<void> {
+  const resolvedPort = port ?? (Number(process.env.PORT) || 3000);
+
+  printDevBanner(entry, resolvedPort, true);
+
+  // Use user's vite.config.ts if it exists, otherwise generate a temp one
+  const userViteConfig = resolve(cwd, "vite.config.ts");
+  const hasUserViteConfig = existsSync(userViteConfig);
+  let tempConfigPath: string | null = null;
+
+  if (!hasUserViteConfig) {
+    tempConfigPath = resolve(cwd, "vite.config.voltx.ts");
+    const viteConfigContent = generateViteConfig(entry, resolvedPort);
+    writeFileSync(tempConfigPath, viteConfigContent, "utf-8");
+  }
+
   const env: Record<string, string> = {
     ...process.env as Record<string, string>,
     NODE_ENV: "development",
   };
 
-  // Parse .env file and inject into environment
-  if (existsSync(envFile)) {
-    const envContent = readFileSync(envFile, "utf-8");
-    for (const line of envContent.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx === -1) continue;
-      const key = trimmed.slice(0, eqIdx).trim();
-      const value = trimmed.slice(eqIdx + 1).trim();
-      env[key] = value;
-    }
+  if (port) {
+    env.PORT = String(port);
   }
+
+  // Run vite dev with the config
+  const viteBin = findBin(cwd, "vite");
+  const viteArgs = ["dev"];
+
+  if (tempConfigPath) {
+    viteArgs.push("--config", tempConfigPath);
+  }
+
+  viteArgs.push("--port", String(resolvedPort));
+
+  let child: ChildProcess;
+
+  if (viteBin) {
+    child = spawn(viteBin, viteArgs, { cwd, env, stdio: "inherit" });
+  } else {
+    child = spawn("npx", ["vite", ...viteArgs], { cwd, env, stdio: "inherit" });
+  }
+
+  // Cleanup temp config on exit
+  const cleanup = () => {
+    if (tempConfigPath && existsSync(tempConfigPath)) {
+      try { unlinkSync(tempConfigPath); } catch {}
+    }
+  };
+
+  const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
+  for (const signal of signals) {
+    process.on(signal, () => {
+      cleanup();
+      child.kill(signal);
+    });
+  }
+
+  child.on("error", (err) => {
+    cleanup();
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      console.error("[voltx] vite not found. Install it with: npm install -D vite @hono/vite-dev-server");
+    } else {
+      console.error("[voltx] Dev server error:", err.message);
+    }
+    process.exit(1);
+  });
+
+  child.on("exit", (code) => {
+    cleanup();
+    process.exit(code ?? 0);
+  });
+}
+
+/**
+ * Generate a vite.config.ts for full-stack Hono + React development.
+ * Uses @hono/vite-dev-server to embed Hono inside Vite.
+ */
+function generateViteConfig(entry: string, port: number): string {
+  return `// Auto-generated by VoltX — do not commit this file
+import { defineConfig } from "vite";
+import devServer from "@hono/vite-dev-server";
+
+export default defineConfig({
+  server: {
+    port: ${port},
+  },
+  plugins: [
+    devServer({
+      entry: "${entry}",
+      exclude: [
+        /.*\\.tsx?($|\\?)/,
+        /.*\\.(s?css|less)($|\\?)/,
+        /.*\\.(svg|png|jpg|jpeg|gif|webp|ico)($|\\?)/,
+        /^\\/@.+$/,
+        /^\\/favicon\\.svg$/,
+        /^\\/node_modules\\/.*/,
+        /^\\/src\\/.*/,
+      ],
+      injectClientScript: false,
+    }),
+  ],
+});
+`;
+}
+
+
+// ─── API-only mode: tsx watch ────────────────────────────────────────────────
+
+/**
+ * Start tsx watch for API-only projects (no frontend).
+ * This is the existing Phase 2 behavior — fast process restart on file changes.
+ */
+async function startTsxWatch(
+  cwd: string,
+  port: number | undefined,
+  entry: string,
+  options: DevOptions,
+): Promise<void> {
+  const resolvedPort = port ?? (Number(process.env.PORT) || 3000);
+
+  printDevBanner(entry, resolvedPort, false);
+
+  const env: Record<string, string> = {
+    ...process.env as Record<string, string>,
+    NODE_ENV: "development",
+  };
 
   if (port) {
     env.PORT = String(port);
   }
 
-  // Print startup banner
-  printDevBanner(entry, port);
-
   // Build tsx watch args
   const tsxArgs = ["watch"];
 
-  if (clearScreen) {
+  if (options.clearScreen ?? true) {
     tsxArgs.push("--clear-screen=false");
   }
 
-  // Watch additional directories for changes
-  const watchDirs = [
-    "src/routes",
-    "src/agents",
-    "src/tools",
-    "src/jobs",
-    "src/lib",
-    "voltx.config.ts",
-    ...(options.watch ?? []),
-  ];
-
-  // tsx watch doesn't need explicit --watch paths — it watches all imported files.
-  // But we can add ignore patterns to avoid unnecessary restarts.
   tsxArgs.push("--ignore=node_modules", "--ignore=dist", "--ignore=.turbo");
-
   tsxArgs.push(entry);
 
-  // Resolve tsx binary — prefer local, fall back to npx
-  const tsxBin = findTsxBin(cwd);
+  const tsxBin = findBin(cwd, "tsx");
 
   let child: ChildProcess;
 
   if (tsxBin) {
-    child = spawn(tsxBin, tsxArgs, {
-      cwd,
-      env,
-      stdio: "inherit",
-    });
+    child = spawn(tsxBin, tsxArgs, { cwd, env, stdio: "inherit" });
   } else {
-    // Fall back to npx tsx
-    child = spawn("npx", ["tsx", ...tsxArgs], {
-      cwd,
-      env,
-      stdio: "inherit",
-    });
+    child = spawn("npx", ["tsx", ...tsxArgs], { cwd, env, stdio: "inherit" });
   }
 
-  // Forward signals to child process
   const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM"];
   for (const signal of signals) {
     process.on(signal, () => {
@@ -124,7 +237,6 @@ export async function runDev(options: DevOptions = {}): Promise<void> {
   child.on("error", (err) => {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       console.error("[voltx] tsx not found. Install it with: npm install -D tsx");
-      console.error("[voltx] Or run your app directly: npx tsx watch src/index.ts");
     } else {
       console.error("[voltx] Dev server error:", err.message);
     }
@@ -136,9 +248,13 @@ export async function runDev(options: DevOptions = {}): Promise<void> {
   });
 }
 
+// ─── Utilities ───────────────────────────────────────────────────────────────
+
 /** Find the app entry point */
 function findEntryPoint(cwd: string): string | null {
   const candidates = [
+    "server.ts",
+    "server.js",
     "src/index.ts",
     "src/index.js",
     "src/index.mts",
@@ -157,31 +273,32 @@ function findEntryPoint(cwd: string): string | null {
   return null;
 }
 
-/** Find the tsx binary in node_modules/.bin */
-function findTsxBin(cwd: string): string | null {
-  const localBin = join(cwd, "node_modules", ".bin", "tsx");
-  if (existsSync(localBin)) return localBin;
+/** Find a binary in node_modules/.bin */
+function findBin(cwd: string, name: string): string | null {
+  const paths = [
+    join(cwd, "node_modules", ".bin", name),
+    join(cwd, "..", "node_modules", ".bin", name),
+    join(cwd, "..", "..", "node_modules", ".bin", name),
+  ];
 
-  // Check parent directories (monorepo support)
-  const parentBin = join(cwd, "..", "node_modules", ".bin", "tsx");
-  if (existsSync(parentBin)) return parentBin;
-
-  const rootBin = join(cwd, "..", "..", "node_modules", ".bin", "tsx");
-  if (existsSync(rootBin)) return rootBin;
+  for (const p of paths) {
+    if (existsSync(p)) return p;
+  }
 
   return null;
 }
 
 /** Print the dev startup banner */
-function printDevBanner(entry: string, port?: number): void {
+function printDevBanner(entry: string, port: number, fullStack: boolean): void {
   console.log("");
   console.log("  ⚡ VoltX Dev Server");
   console.log("  ─────────────────────────────────");
   console.log(`  Entry:   ${entry}`);
-  if (port) {
-    console.log(`  Port:    ${port}`);
+  console.log(`  Port:    ${port}`);
+  console.log(`  Mode:    ${fullStack ? "full-stack (Vite + Hono)" : "API-only (tsx watch)"}`);
+  if (fullStack) {
+    console.log(`  HMR:     enabled (frontend + backend)`);
   }
-  console.log(`  Mode:    development (hot reload)`);
   console.log("  ─────────────────────────────────");
   console.log("");
 }

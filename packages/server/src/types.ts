@@ -9,7 +9,7 @@ export interface ServerConfig {
   port?: number;
   /** Hostname to bind to (default: "0.0.0.0") */
   hostname?: string;
-  /** Directory to scan for file-based routes (default: "src/routes") */
+  /** Directory to scan for file-based routes (default: "api") */
   routesDir?: string;
   /** Directory for static files (default: "public") */
   staticDir?: string;

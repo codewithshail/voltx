@@ -9,19 +9,32 @@ export interface CreateProjectOptions {
   name: string;
   template?: "chatbot" | "rag-app" | "agent-app" | "blank";
   auth?: "better-auth" | "jwt" | "none";
+  shadcn?: boolean;
 }
 
-const V = "^0.3.0";
+const VV: Record<string, string> = {
+  "@voltx/core": "^0.3.1",
+  "@voltx/server": "^0.3.1",
+  "@voltx/cli": "^0.3.5",
+  "@voltx/ai": "^0.3.0",
+  "@voltx/agents": "^0.3.1",
+  "@voltx/memory": "^0.3.0",
+  "@voltx/db": "^0.3.0",
+  "@voltx/rag": "^0.3.1",
+  "@voltx/auth": "^0.3.0",
+};
+
+function v(pkg: string): string { return VV[pkg] ?? "^0.3.0"; }
 
 const TEMPLATE_DEPS: Record<string, Record<string, string>> = {
-  blank: { "@voltx/core": V, "@voltx/server": V },
-  chatbot: { "@voltx/core": V, "@voltx/ai": V, "@voltx/server": V, "@voltx/memory": V },
-  "rag-app": { "@voltx/core": V, "@voltx/ai": V, "@voltx/server": V, "@voltx/rag": V, "@voltx/db": V },
-  "agent-app": { "@voltx/core": V, "@voltx/ai": V, "@voltx/server": V, "@voltx/agents": V, "@voltx/memory": V },
+  blank: { "@voltx/core": v("@voltx/core"), "@voltx/server": v("@voltx/server") },
+  chatbot: { "@voltx/core": v("@voltx/core"), "@voltx/ai": v("@voltx/ai"), "@voltx/server": v("@voltx/server"), "@voltx/memory": v("@voltx/memory") },
+  "rag-app": { "@voltx/core": v("@voltx/core"), "@voltx/ai": v("@voltx/ai"), "@voltx/server": v("@voltx/server"), "@voltx/rag": v("@voltx/rag"), "@voltx/db": v("@voltx/db") },
+  "agent-app": { "@voltx/core": v("@voltx/core"), "@voltx/ai": v("@voltx/ai"), "@voltx/server": v("@voltx/server"), "@voltx/agents": v("@voltx/agents"), "@voltx/memory": v("@voltx/memory") },
 };
 
 export async function createProject(options: CreateProjectOptions): Promise<void> {
-  const { name, template = "blank", auth = "none" } = options;
+  const { name, template = "blank", auth = "none", shadcn = false } = options;
   const targetDir = path.resolve(process.cwd(), name);
 
   if (fs.existsSync(targetDir)) {
@@ -36,45 +49,106 @@ export async function createProject(options: CreateProjectOptions): Promise<void
   const hasDb = template === "rag-app" || template === "agent-app" || auth === "better-auth";
 
   // package.json
-  const deps: Record<string, string> = { ...(TEMPLATE_DEPS[template] ?? TEMPLATE_DEPS["blank"]), "@voltx/cli": V };
-  if (auth === "better-auth") { deps["@voltx/auth"] = V; deps["better-auth"] = "^1.5.0"; }
-  else if (auth === "jwt") { deps["@voltx/auth"] = V; deps["jose"] = "^6.0.0"; }
+  const deps: Record<string, string> = { ...(TEMPLATE_DEPS[template] ?? TEMPLATE_DEPS["blank"]), "@voltx/cli": v("@voltx/cli") };
+  if (auth === "better-auth") { deps["@voltx/auth"] = v("@voltx/auth"); deps["better-auth"] = "^1.5.0"; }
+  else if (auth === "jwt") { deps["@voltx/auth"] = v("@voltx/auth"); deps["jose"] = "^6.0.0"; }
+
+  const devDeps: Record<string, string> = { typescript: "^5.7.0", tsx: "^4.21.0", tsup: "^8.0.0", "@types/node": "^22.0.0" };
+  deps["hono"] = "^4.7.0";
+  deps["@hono/node-server"] = "^1.14.0";
+  deps["react"] = "^19.0.0";
+  deps["react-dom"] = "^19.0.0";
+  deps["tailwindcss"] = "^4.0.0";
+  devDeps["vite"] = "^6.0.0";
+  devDeps["@hono/vite-dev-server"] = "^0.7.0";
+  devDeps["@vitejs/plugin-react"] = "^4.3.0";
+  devDeps["@tailwindcss/vite"] = "^4.0.0";
+  devDeps["@types/react"] = "^19.0.0";
+  devDeps["@types/react-dom"] = "^19.0.0";
+
+  // shadcn/ui base deps
+  if (shadcn) {
+    deps["class-variance-authority"] = "^0.7.0";
+    deps["clsx"] = "^2.1.0";
+    deps["tailwind-merge"] = "^3.0.0";
+    deps["lucide-react"] = "^0.468.0";
+  }
 
   fs.writeFileSync(path.join(targetDir, "package.json"), JSON.stringify({
     name, version: "0.1.0", private: true,
     scripts: { dev: "voltx dev", build: "voltx build", start: "voltx start" },
     dependencies: deps,
-    devDependencies: { typescript: "^5.7.0", tsx: "^4.21.0", tsup: "^8.0.0", "@types/node": "^22.0.0" },
+    devDependencies: devDeps,
   }, null, 2));
 
   // voltx.config.ts
   let config = `import { defineConfig } from "@voltx/core";\n\nexport default defineConfig({\n  name: "${name}",\n  port: 3000,\n  ai: {\n    provider: "${provider}",\n    model: "${model}",\n  },`;
   if (hasDb) config += `\n  db: {\n    url: process.env.DATABASE_URL,\n  },`;
   if (auth !== "none") config += `\n  auth: {\n    provider: "${auth}",\n  },`;
-  config += `\n  server: {\n    routesDir: "src/routes",\n    staticDir: "public",\n    cors: true,\n  },\n});\n`;
+  config += `\n  server: {\n    routesDir: "api",\n    staticDir: "public",\n    cors: true,\n  },\n});\n`;
   fs.writeFileSync(path.join(targetDir, "voltx.config.ts"), config);
 
   // Directories
-  fs.mkdirSync(path.join(targetDir, "src", "routes", "api"), { recursive: true });
+  fs.mkdirSync(path.join(targetDir, "api"), { recursive: true });
   fs.mkdirSync(path.join(targetDir, "public"), { recursive: true });
+  fs.mkdirSync(path.join(targetDir, "src"), { recursive: true });
+  fs.mkdirSync(path.join(targetDir, "src", "components"), { recursive: true });
+  fs.mkdirSync(path.join(targetDir, "src", "hooks"), { recursive: true });
+  fs.mkdirSync(path.join(targetDir, "src", "lib"), { recursive: true });
+
+  // Public assets
+  fs.writeFileSync(path.join(targetDir, "public", "favicon.svg"), generateFaviconSVG());
+  fs.writeFileSync(path.join(targetDir, "public", "robots.txt"), generateRobotsTxt());
+  fs.writeFileSync(path.join(targetDir, "public", "site.webmanifest"), generateWebManifest(name));
 
   // tsconfig.json
-  fs.writeFileSync(path.join(targetDir, "tsconfig.json"), JSON.stringify({
-    compilerOptions: { target: "ES2022", module: "ESNext", moduleResolution: "bundler", strict: true, esModuleInterop: true, skipLibCheck: true, outDir: "dist" },
-    include: ["src", "voltx.config.ts"],
-  }, null, 2));
+  const tsconfig: Record<string, unknown> = {
+    compilerOptions: {
+      target: "ES2022", module: "ESNext", moduleResolution: "bundler",
+      strict: true, esModuleInterop: true, skipLibCheck: true, outDir: "dist",
+      baseUrl: ".",
+      paths: { "@/*": ["./src/*"] },
+      jsx: "react-jsx",
+    },
+    include: ["src", "api", "server.ts", "voltx.config.ts"],
+  };
+  if (template === "agent-app") (tsconfig.include as string[]).push("agents", "tools");
+  fs.writeFileSync(path.join(targetDir, "tsconfig.json"), JSON.stringify(tsconfig, null, 2));
 
-  // src/index.ts
-  fs.writeFileSync(path.join(targetDir, "src", "index.ts"),
-    `import { createApp } from "@voltx/core";\nimport config from "../voltx.config";\n\nconst app = createApp(config);\napp.start();\n`);
+  // server.ts — Hono app entry
+  fs.writeFileSync(path.join(targetDir, "server.ts"), generateServerEntry(name, template));
 
-  // src/routes/index.ts — health check
-  fs.writeFileSync(path.join(targetDir, "src", "routes", "index.ts"),
-    `// GET / — Health check\nimport type { Context } from "@voltx/server";\n\nexport function GET(c: Context) {\n  return c.json({ name: "${name}", status: "ok" });\n}\n`);
+  // vite.config.ts
+  fs.writeFileSync(path.join(targetDir, "vite.config.ts"), generateViteConfigFile("server.ts"));
+
+  // src/entry-client.tsx
+  fs.writeFileSync(path.join(targetDir, "src", "entry-client.tsx"), generateEntryClient());
+
+  // src/entry-server.tsx
+  fs.writeFileSync(path.join(targetDir, "src", "entry-server.tsx"), generateEntryServer());
+
+  // src/layout.tsx
+  fs.writeFileSync(path.join(targetDir, "src", "layout.tsx"), generateLayoutComponent(name));
+
+  // src/globals.css
+  fs.writeFileSync(path.join(targetDir, "src", "globals.css"), generateGlobalCSS(shadcn));
+
+  // shadcn/ui setup
+  if (shadcn) {
+    fs.writeFileSync(path.join(targetDir, "src", "lib", "utils.ts"), generateCnUtil());
+    fs.writeFileSync(path.join(targetDir, "components.json"), generateComponentsJson());
+  }
+
+  // src/app.tsx
+  fs.writeFileSync(path.join(targetDir, "src", "app.tsx"), generateAppComponent(name, template));
+
+  // api/index.ts — health check
+  fs.writeFileSync(path.join(targetDir, "api", "index.ts"),
+    `// GET /api — Health check\nimport type { Context } from "@voltx/server";\n\nexport function GET(c: Context) {\n  return c.json({ name: "${name}", status: "ok" });\n}\n`);
 
   // ── Chat route (chatbot + agent-app) ─────────────────────────────────────
   if (template === "chatbot" || template === "agent-app") {
-    fs.writeFileSync(path.join(targetDir, "src", "routes", "api", "chat.ts"),
+    fs.writeFileSync(path.join(targetDir, "api", "chat.ts"),
       `// POST /api/chat — Streaming chat with conversation memory
 import type { Context } from "@voltx/server";
 import { streamText } from "@voltx/ai";
@@ -109,11 +183,10 @@ export async function POST(c: Context) {
 
   // ── Agent-specific files ─────────────────────────────────────────────────
   if (template === "agent-app") {
-    fs.mkdirSync(path.join(targetDir, "src", "agents"), { recursive: true });
-    fs.mkdirSync(path.join(targetDir, "src", "tools"), { recursive: true });
+    fs.mkdirSync(path.join(targetDir, "agents"), { recursive: true });
+    fs.mkdirSync(path.join(targetDir, "tools"), { recursive: true });
 
-    // Default tools: calculator + datetime (no API keys needed)
-    fs.writeFileSync(path.join(targetDir, "src", "tools", "calculator.ts"), `// Calculator tool — evaluates math expressions (no API key needed)
+    fs.writeFileSync(path.join(targetDir, "tools", "calculator.ts"), `// Calculator tool — evaluates math expressions (no API key needed)
 import type { Tool } from "@voltx/agents";
 
 export const calculatorTool: Tool = {
@@ -139,7 +212,7 @@ export const calculatorTool: Tool = {
 };
 `);
 
-    fs.writeFileSync(path.join(targetDir, "src", "tools", "datetime.ts"), `// Date & time tool — returns current date, time, timezone (no API key needed)
+    fs.writeFileSync(path.join(targetDir, "tools", "datetime.ts"), `// Date & time tool — returns current date, time, timezone (no API key needed)
 import type { Tool } from "@voltx/agents";
 
 export const datetimeTool: Tool = {
@@ -161,7 +234,7 @@ export const datetimeTool: Tool = {
 };
 `);
 
-    fs.writeFileSync(path.join(targetDir, "src", "agents", "assistant.ts"), `// AI Agent — autonomous assistant with tools
+    fs.writeFileSync(path.join(targetDir, "agents", "assistant.ts"), `// AI Agent — autonomous assistant with tools
 import { createAgent } from "@voltx/agents";
 import { calculatorTool } from "../tools/calculator";
 import { datetimeTool } from "../tools/datetime";
@@ -175,16 +248,16 @@ export const assistant = createAgent({
 });
 `);
 
-    fs.writeFileSync(path.join(targetDir, "src", "routes", "api", "agent.ts"),
-      `// POST /api/agent — Run the AI agent\nimport type { Context } from "@voltx/server";\nimport { assistant } from "../../agents/assistant";\n\nexport async function POST(c: Context) {\n  const { input } = await c.req.json();\n  if (!input) return c.json({ error: "Missing 'input' field" }, 400);\n  const result = await assistant.run(input);\n  return c.json({ content: result.content, steps: result.steps });\n}\n`);
+    fs.writeFileSync(path.join(targetDir, "api", "agent.ts"),
+      `// POST /api/agent — Run the AI agent\nimport type { Context } from "@voltx/server";\nimport { assistant } from "../agents/assistant";\n\nexport async function POST(c: Context) {\n  const { input } = await c.req.json();\n  if (!input) return c.json({ error: "Missing 'input' field" }, 400);\n  const result = await assistant.run(input);\n  return c.json({ content: result.content, steps: result.steps });\n}\n`);
   }
 
   // ── RAG routes ─────────────────────────────────────────────────────────────
   if (template === "rag-app") {
     const embedModel = "openai:text-embedding-3-small";
-    fs.mkdirSync(path.join(targetDir, "src", "routes", "api", "rag"), { recursive: true });
+    fs.mkdirSync(path.join(targetDir, "api", "rag"), { recursive: true });
 
-    fs.writeFileSync(path.join(targetDir, "src", "routes", "api", "rag", "query.ts"),
+    fs.writeFileSync(path.join(targetDir, "api", "rag", "query.ts"),
       `// POST /api/rag/query — Query documents with RAG
 import type { Context } from "@voltx/server";
 import { streamText } from "@voltx/ai";
@@ -207,7 +280,7 @@ export async function POST(c: Context) {
 }
 `);
 
-    fs.writeFileSync(path.join(targetDir, "src", "routes", "api", "rag", "ingest.ts"),
+    fs.writeFileSync(path.join(targetDir, "api", "rag", "ingest.ts"),
       `// POST /api/rag/ingest — Ingest documents into the vector store
 import type { Context } from "@voltx/server";
 import { createRAGPipeline, createEmbedder } from "@voltx/rag";
@@ -228,18 +301,16 @@ export async function POST(c: Context) {
 
   // ── Auth routes ────────────────────────────────────────────────────────────
   if (auth === "better-auth") {
-    fs.mkdirSync(path.join(targetDir, "src", "routes", "api", "auth"), { recursive: true });
-    fs.writeFileSync(path.join(targetDir, "src", "routes", "api", "auth", "[...path].ts"),
-      `// ALL /api/auth/* — Better Auth handler\nimport type { Context } from "@voltx/server";\nimport { auth } from "../../../lib/auth";\nimport { createAuthHandler } from "@voltx/auth";\n\nconst handler = createAuthHandler(auth);\n\nexport const GET = (c: Context) => handler(c);\nexport const POST = (c: Context) => handler(c);\n`);
-    fs.mkdirSync(path.join(targetDir, "src", "lib"), { recursive: true });
+    fs.mkdirSync(path.join(targetDir, "api", "auth"), { recursive: true });
+    fs.writeFileSync(path.join(targetDir, "api", "auth", "[...path].ts"),
+      `// ALL /api/auth/* — Better Auth handler\nimport type { Context } from "@voltx/server";\nimport { auth } from "../../src/lib/auth";\nimport { createAuthHandler } from "@voltx/auth";\n\nconst handler = createAuthHandler(auth);\n\nexport const GET = (c: Context) => handler(c);\nexport const POST = (c: Context) => handler(c);\n`);
     fs.writeFileSync(path.join(targetDir, "src", "lib", "auth.ts"),
       `import { createAuth, createAuthMiddleware } from "@voltx/auth";\n\nexport const auth = createAuth("better-auth", {\n  database: process.env.DATABASE_URL!,\n  emailAndPassword: true,\n});\n\nexport const authMiddleware = createAuthMiddleware({\n  provider: auth,\n  publicPaths: ["/api/auth", "/api/health", "/"],\n});\n`);
   } else if (auth === "jwt") {
-    fs.mkdirSync(path.join(targetDir, "src", "lib"), { recursive: true });
     fs.writeFileSync(path.join(targetDir, "src", "lib", "auth.ts"),
       `import { createAuth, createAuthMiddleware } from "@voltx/auth";\n\nexport const jwt = createAuth("jwt", {\n  secret: process.env.JWT_SECRET!,\n  expiresIn: "7d",\n});\n\nexport const authMiddleware = createAuthMiddleware({\n  provider: jwt,\n  publicPaths: ["/api/auth", "/api/health", "/"],\n});\n`);
-    fs.writeFileSync(path.join(targetDir, "src", "routes", "api", "auth.ts"),
-      `import type { Context } from "@voltx/server";\nimport { jwt } from "../../lib/auth";\n\nexport async function POST(c: Context) {\n  const { email, password } = await c.req.json();\n  if (!email || !password) return c.json({ error: "Email and password are required" }, 400);\n  const token = await jwt.sign({ sub: email, email });\n  return c.json({ token });\n}\n`);
+    fs.writeFileSync(path.join(targetDir, "api", "auth.ts"),
+      `import type { Context } from "@voltx/server";\nimport { jwt } from "../src/lib/auth";\n\nexport async function POST(c: Context) {\n  const { email, password } = await c.req.json();\n  if (!email || !password) return c.json({ error: "Email and password are required" }, 400);\n  const token = await jwt.sign({ sub: email, email });\n  return c.json({ token });\n}\n`);
   }
 
   // ── .env.example ───────────────────────────────────────────────────────────
@@ -249,14 +320,6 @@ export async function POST(c: Context) {
     envContent += "# ─── Database ────────────────────────────────────\nDATABASE_URL=\n\n";
   } else if (template === "chatbot" || template === "agent-app") {
     envContent += "# ─── LLM Provider ────────────────────────────────\nCEREBRAS_API_KEY=csk-...\n\n";
-    if (template === "agent-app") {
-      envContent += "# ─── Database (optional) ─────────────────────────\nDATABASE_URL=\n\n";
-      envContent += "# ─── Tool API Keys (add keys for tools you use) ──\n";
-      envContent += "# TAVILY_API_KEY=tvly-...       (Web Search — https://tavily.com)\n";
-      envContent += "# SERPER_API_KEY=               (Google Search — https://serper.dev)\n";
-      envContent += "# OPENWEATHER_API_KEY=          (Weather — https://openweathermap.org/api)\n";
-      envContent += "# NEWS_API_KEY=                 (News — https://newsapi.org)\n\n";
-    }
   } else {
     envContent += "# ─── LLM Provider ────────────────────────────────\n# OPENAI_API_KEY=sk-...\n# CEREBRAS_API_KEY=csk-...\n\n";
   }
@@ -268,179 +331,677 @@ export async function POST(c: Context) {
   envContent += "# ─── App ─────────────────────────────────────────\nPORT=3000\nNODE_ENV=development\n";
   fs.writeFileSync(path.join(targetDir, ".env.example"), envContent);
 
-  // Frontend UI (public/index.html)
-  if (template !== "blank") {
-    fs.writeFileSync(path.join(targetDir, "public", "index.html"), generateFrontendHTML(name, template));
-  }
-
   // .gitignore
-  fs.writeFileSync(path.join(targetDir, ".gitignore"), "node_modules\ndist\n.env\n");
-
-  // tsconfig already written above
+  fs.writeFileSync(path.join(targetDir, ".gitignore"), "node_modules\ndist\n.env\n.env.local\n.env.*.local\nvite.config.voltx.ts\n");
 
   // Show the welcome banner
   printWelcomeBanner(name);
 }
 
-// ─── Frontend HTML generator ─────────────────────────────────────────────────
+// ─── Server entry generator ──────────────────────────────────────────────────
 
-function generateFrontendHTML(projectName: string, template: string): string {
-  const badge = template === "chatbot" ? "Chatbot" : template === "rag-app" ? "RAG App" : "Agent App";
-  const accentClass = template === "rag-app" ? "emerald" : template === "agent-app" ? "purple" : "blue";
+function generateServerEntry(projectName: string, template: string): string {
+  const imports: string[] = [];
+  const mounts: string[] = [];
 
-  const shell = (body: string) => `<!DOCTYPE html>
-<html lang="en" class="h-full">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${projectName}</title>
-  <script src="https://cdn.tailwindcss.com/3.4.17"><\/script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    body { font-family: 'Inter', system-ui, sans-serif; }
-    .msg-enter { animation: msgIn 0.25s ease-out; }
-    @keyframes msgIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-    .typing-dot { animation: blink 1.4s infinite both; }
-    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes blink { 0%, 80%, 100% { opacity: 0.2; } 40% { opacity: 1; } }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-  </style>
-</head>
-<body class="h-full bg-gray-950 text-gray-100">
-  <div id="app" class="h-full flex flex-col">
-    <header class="flex-shrink-0 border-b border-gray-800 bg-gray-950/80 backdrop-blur-sm px-4 py-3">
-      <div class="max-w-4xl mx-auto flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-bold">V</div>
-          <h1 class="text-lg font-semibold text-white">${projectName}</h1>
-          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400">${badge}</span>
-        </div>
-        <a href="https://github.com/codewithshail/voltx" target="_blank" class="text-gray-500 hover:text-gray-300 transition-colors text-sm">Built with VoltX</a>
-      </div>
-    </header>
-    <main class="flex-1 overflow-hidden"><div class="h-full max-w-4xl mx-auto">
-${body}
-    </div></main>
-  </div>
-</body>
-</html>`;
+  imports.push('import { GET as healthGET } from "./api/index";');
+  mounts.push('app.get("/api", healthGET);');
 
-  if (template === "chatbot") return shell(chatbotBody());
-  if (template === "rag-app") return shell(ragAppBody());
-  if (template === "agent-app") return shell(agentAppBody());
-  return "";
-}
-
-function chatbotBody(): string {
-  return `      <div class="h-full flex flex-col">
-        <div id="messages" class="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-          <div class="text-center py-12">
-            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-600/20 border border-blue-500/20 flex items-center justify-center">
-              <svg class="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-            </div>
-            <h2 class="text-xl font-semibold text-white mb-2">Start a conversation</h2>
-            <p class="text-gray-500 text-sm">Type a message below to chat with your AI assistant.</p>
-          </div>
-        </div>
-        <div class="flex-shrink-0 border-t border-gray-800 px-4 py-4">
-          <form id="chatForm" class="flex gap-3">
-            <input id="chatInput" type="text" placeholder="Type your message..." autocomplete="off" class="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" />
-            <button type="submit" id="sendBtn" class="px-5 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-medium rounded-xl transition-colors">Send</button>
-          </form>
-        </div>
-      </div>
-      <script>
-        const messages=[], messagesEl=document.getElementById("messages"), form=document.getElementById("chatForm"), input=document.getElementById("chatInput"), sendBtn=document.getElementById("sendBtn");
-        function addMsg(role,content){const d=document.createElement("div");d.className="msg-enter flex "+(role==="user"?"justify-end":"justify-start");const b=document.createElement("div");b.className=role==="user"?"max-w-[75%] px-4 py-2.5 rounded-2xl rounded-br-md bg-blue-600 text-white text-sm leading-relaxed":"max-w-[75%] px-4 py-2.5 rounded-2xl rounded-bl-md bg-gray-800 text-gray-200 text-sm leading-relaxed";b.textContent=content;d.appendChild(b);const w=messagesEl.querySelector(".text-center.py-12");if(w)w.remove();messagesEl.appendChild(d);messagesEl.scrollTop=messagesEl.scrollHeight;return b}
-        form.addEventListener("submit",async e=>{e.preventDefault();const text=input.value.trim();if(!text)return;messages.push({role:"user",content:text});addMsg("user",text);input.value="";sendBtn.disabled=true;try{const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages,conversationId:"default"})});if(!res.ok){addMsg("assistant","Error: "+res.status);sendBtn.disabled=false;return}const bubble=addMsg("assistant","");const reader=res.body.getReader();const dec=new TextDecoder();let full="";while(true){const{done,value}=await reader.read();if(done)break;const chunk=dec.decode(value,{stream:true});for(const line of chunk.split("\\n")){if(line.startsWith("data: ")){const d=line.slice(6);if(d==="[DONE]")continue;try{const p=JSON.parse(d);const t=p.textDelta||p.choices?.[0]?.delta?.content||p.content||p.text||"";full+=t;bubble.textContent=full;messagesEl.scrollTop=messagesEl.scrollHeight}catch{}}}}messages.push({role:"assistant",content:full})}catch(err){addMsg("assistant","Error: "+err.message)}sendBtn.disabled=false;input.focus()});
-        input.focus();
-      <\/script>`;
-}
-
-function ragAppBody(): string {
-  return `      <div class="h-full flex flex-col md:flex-row">
-        <div class="md:w-80 flex-shrink-0 border-b md:border-b-0 md:border-r border-gray-800 flex flex-col">
-          <div class="px-4 py-3 border-b border-gray-800"><h2 class="text-sm font-semibold text-white flex items-center gap-2"><svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>Ingest Documents</h2></div>
-          <div class="flex-1 p-4 flex flex-col gap-3">
-            <textarea id="ingestText" rows="6" placeholder="Paste text to ingest..." class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 resize-none"></textarea>
-            <button id="ingestBtn" onclick="ingestDoc()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-medium rounded-lg transition-colors">Ingest</button>
-            <div id="ingestStatus" class="text-xs text-gray-500 hidden"></div>
-            <div class="mt-auto pt-3 border-t border-gray-800"><p class="text-xs text-gray-600">Documents are chunked, embedded, and stored for retrieval.</p></div>
-          </div>
-        </div>
-        <div class="flex-1 flex flex-col min-w-0">
-          <div id="ragMessages" class="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-            <div class="text-center py-12">
-              <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-600/20 border border-emerald-500/20 flex items-center justify-center"><svg class="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div>
-              <h2 class="text-xl font-semibold text-white mb-2">Ask your documents</h2>
-              <p class="text-gray-500 text-sm">Ingest documents on the left, then ask questions here.</p>
-            </div>
-          </div>
-          <div class="flex-shrink-0 border-t border-gray-800 px-4 py-4">
-            <form id="ragForm" class="flex gap-3">
-              <input id="ragInput" type="text" placeholder="Ask about your documents..." autocomplete="off" class="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors" />
-              <button type="submit" id="ragSendBtn" class="px-5 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-medium rounded-xl transition-colors">Ask</button>
-            </form>
-          </div>
-        </div>
-      </div>
-      <script>
-        const ragEl=document.getElementById("ragMessages");
-        function addRagMsg(role,c){const d=document.createElement("div");d.className="msg-enter flex "+(role==="user"?"justify-end":"justify-start");const b=document.createElement("div");b.className=role==="user"?"max-w-[75%] px-4 py-2.5 rounded-2xl rounded-br-md bg-emerald-600 text-white text-sm leading-relaxed":"max-w-[75%] px-4 py-2.5 rounded-2xl rounded-bl-md bg-gray-800 text-gray-200 text-sm leading-relaxed";b.textContent=c;d.appendChild(b);const w=ragEl.querySelector(".text-center.py-12");if(w)w.remove();ragEl.appendChild(d);ragEl.scrollTop=ragEl.scrollHeight;return b}
-        async function ingestDoc(){const text=document.getElementById("ingestText").value.trim();if(!text)return;const btn=document.getElementById("ingestBtn"),st=document.getElementById("ingestStatus");btn.disabled=true;btn.textContent="Ingesting...";st.className="text-xs text-yellow-400";st.textContent="Processing...";st.classList.remove("hidden");try{const res=await fetch("/api/rag/ingest",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});const data=await res.json();if(res.ok){st.className="text-xs text-emerald-400";st.textContent="Ingested "+(data.chunks||0)+" chunks.";document.getElementById("ingestText").value=""}else{st.className="text-xs text-red-400";st.textContent="Error: "+(data.error||res.statusText)}}catch(e){st.className="text-xs text-red-400";st.textContent="Error: "+e.message}btn.disabled=false;btn.textContent="Ingest"}
-        document.getElementById("ragForm").addEventListener("submit",async e=>{e.preventDefault();const input=document.getElementById("ragInput"),text=input.value.trim();if(!text)return;addRagMsg("user",text);input.value="";document.getElementById("ragSendBtn").disabled=true;try{const res=await fetch("/api/rag/query",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:text})});if(!res.ok){addRagMsg("assistant","Error: "+res.status);document.getElementById("ragSendBtn").disabled=false;return}const bubble=addRagMsg("assistant","");const reader=res.body.getReader();const dec=new TextDecoder();let full="";while(true){const{done,value}=await reader.read();if(done)break;const chunk=dec.decode(value,{stream:true});for(const line of chunk.split("\\n")){if(line.startsWith("data: ")){const d=line.slice(6);if(d==="[DONE]")continue;try{const p=JSON.parse(d);const t=p.textDelta||p.choices?.[0]?.delta?.content||p.content||p.text||"";full+=t;bubble.textContent=full;ragEl.scrollTop=ragEl.scrollHeight}catch{}}}};}catch(err){addRagMsg("assistant","Error: "+err.message)}document.getElementById("ragSendBtn").disabled=false;document.getElementById("ragInput").focus()});
-        document.getElementById("ragInput").focus();
-      <\/script>`;
-}
-
-function agentAppBody(): string {
-  return `      <div class="h-full flex flex-col">
-        <div id="agentMessages" class="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-          <div class="text-center py-12">
-            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-500/20 to-orange-500/20 border border-purple-500/20 flex items-center justify-center"><svg class="w-8 h-8 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div>
-            <h2 class="text-xl font-semibold text-white mb-2">AI Agent</h2>
-            <p class="text-gray-500 text-sm">Your agent can use tools to answer questions accurately.</p>
-          </div>
-        </div>
-        <div class="flex-shrink-0 border-t border-gray-800 px-4 py-4">
-          <form id="agentForm" class="flex gap-3">
-            <input id="agentInput" type="text" placeholder="Ask the agent anything..." autocomplete="off" class="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-colors" />
-            <button type="submit" id="agentSendBtn" class="px-5 py-3 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm font-medium rounded-xl transition-colors">Run</button>
-          </form>
-        </div>
-      </div>
-      <script>
-        const agentEl=document.getElementById("agentMessages");
-        function addAgentMsg(role,c,isStep){const d=document.createElement("div");d.className="msg-enter flex "+(role==="user"?"justify-end":"justify-start");const b=document.createElement("div");if(isStep){b.className="max-w-[85%] px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-xs text-gray-400 font-mono"}else{b.className=role==="user"?"max-w-[75%] px-4 py-2.5 rounded-2xl rounded-br-md bg-purple-600 text-white text-sm leading-relaxed":"max-w-[75%] px-4 py-2.5 rounded-2xl rounded-bl-md bg-gray-800 text-gray-200 text-sm leading-relaxed whitespace-pre-wrap"}b.textContent=c;d.appendChild(b);const w=agentEl.querySelector(".text-center.py-12");if(w)w.remove();agentEl.appendChild(d);agentEl.scrollTop=agentEl.scrollHeight;return b}
-        function addThinking(){const d=document.createElement("div");d.id="thinking";d.className="msg-enter flex justify-start";d.innerHTML='<div class="px-4 py-2.5 rounded-2xl rounded-bl-md bg-gray-800 flex items-center gap-2 text-sm text-gray-400"><svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>Agent is thinking...</div>';agentEl.appendChild(d);agentEl.scrollTop=agentEl.scrollHeight}
-        function removeThinking(){const t=document.getElementById("thinking");if(t)t.remove()}
-        document.getElementById("agentForm").addEventListener("submit",async e=>{e.preventDefault();const input=document.getElementById("agentInput"),text=input.value.trim();if(!text)return;addAgentMsg("user",text);input.value="";document.getElementById("agentSendBtn").disabled=true;addThinking();try{const res=await fetch("/api/agent",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({input:text})});removeThinking();if(!res.ok){const err=await res.json().catch(()=>({}));addAgentMsg("assistant","Error: "+(err.error||res.statusText));document.getElementById("agentSendBtn").disabled=false;return}const data=await res.json();if(data.steps&&data.steps.length>0){for(const s of data.steps){const name=s.tool||s.name||"tool";const inp=typeof s.input==="string"?s.input:JSON.stringify(s.input||{});const out=typeof s.output==="string"?s.output:JSON.stringify(s.output||{});addAgentMsg("assistant","🔧 "+name+"("+inp+")\\n→ "+out.slice(0,300),true)}}addAgentMsg("assistant",data.content||"No response.")}catch(err){removeThinking();addAgentMsg("assistant","Error: "+err.message)}document.getElementById("agentSendBtn").disabled=false;input.focus()});
-        document.getElementById("agentInput").focus();
-      <\/script>`;
-}
-
-if (typeof require !== "undefined" && require.main === module && process.argv[1]?.includes("create")) {
-  const projectName = process.argv[2];
-  if (!projectName) {
-    console.log("Usage: create-voltx-app <project-name> [--template chatbot] [--auth jwt]");
-    process.exit(1);
+  if (template === "chatbot" || template === "agent-app") {
+    imports.push('import { POST as chatPOST } from "./api/chat";');
+    mounts.push('app.post("/api/chat", chatPOST);');
+  }
+  if (template === "agent-app") {
+    imports.push('import { POST as agentPOST } from "./api/agent";');
+    mounts.push('app.post("/api/agent", agentPOST);');
+  }
+  if (template === "rag-app") {
+    imports.push('import { POST as ragQueryPOST } from "./api/rag/query";');
+    imports.push('import { POST as ragIngestPOST } from "./api/rag/ingest";');
+    mounts.push('app.post("/api/rag/query", ragQueryPOST);');
+    mounts.push('app.post("/api/rag/ingest", ragIngestPOST);');
   }
 
-  const templateFlag = process.argv.indexOf("--template");
-  const template = templateFlag !== -1
-    ? (process.argv[templateFlag + 1] as CreateProjectOptions["template"])
-    : "blank";
+  return `import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { registerSSR } from "@voltx/server";
+import { loadEnv } from "@voltx/core";
+${imports.join("\n")}
 
-  const authFlag = process.argv.indexOf("--auth");
-  const auth = authFlag !== -1
-    ? (process.argv[authFlag + 1] as CreateProjectOptions["auth"])
-    : "none";
+loadEnv(process.env.NODE_ENV ?? "development");
 
-  createProject({ name: projectName, template, auth }).catch((err) => {
-    console.error("[voltx] Error:", err);
-    process.exit(1);
+const isProd = process.env.NODE_ENV === "production";
+const app = new Hono();
+
+// ── API Routes ───────────────────────────────────────────────────────────
+${mounts.join("\n")}
+
+// ── Static assets (production) ───────────────────────────────────────────
+if (isProd) {
+  app.use("/assets/*", serveStatic({ root: "./dist/client/" }));
+  app.use("/favicon.svg", serveStatic({ root: "./public/" }));
+  app.use("/robots.txt", serveStatic({ root: "./public/" }));
+  app.use("/site.webmanifest", serveStatic({ root: "./public/" }));
+}
+
+// ── SSR catch-all — renders React on the server ─────────────────────────
+registerSSR(app, null, {
+  title: "${projectName}",
+  entryServer: "src/entry-server.tsx",
+  entryClient: "src/entry-client.tsx",
+});
+
+export default app;
+
+if (isProd) {
+  const port = Number(process.env.PORT) || 3000;
+  serve({ fetch: app.fetch, port }, (info) => {
+    console.log(\`\\n  ⚡ ${projectName} running at http://localhost:\${info.port}\\n\`);
   });
+}
+`;
+}
+
+// ─── Vite config generator ───────────────────────────────────────────────────
+
+function generateViteConfigFile(entry: string): string {
+  return `import { defineConfig } from "vite";
+import devServer from "@hono/vite-dev-server";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+
+export default defineConfig({
+  resolve: {
+    alias: {
+      "@": "/src",
+    },
+  },
+  plugins: [
+    react(),
+    tailwindcss(),
+    devServer({
+      entry: "${entry}",
+      exclude: [
+        /.*\\.tsx?($|\\?)/,
+        /.*\\.(s?css|less)($|\\?)/,
+        /.*\\.(svg|png|jpg|jpeg|gif|webp|ico)($|\\?)/,
+        /^\\/@.+$/,
+        /^\\/favicon\\.svg$/,
+        /^\\/node_modules\\/.*/,
+        /^\\/src\\/.*/,
+      ],
+      injectClientScript: false,
+    }),
+  ],
+});
+`;
+}
+
+// ─── Frontend generators ─────────────────────────────────────────────────────
+
+function generateEntryClient(): string {
+  return `import React from "react";
+import { hydrateRoot } from "react-dom/client";
+import Layout from "./layout";
+import App from "./app";
+import "./globals.css";
+
+hydrateRoot(
+  document.getElementById("root")!,
+  <React.StrictMode>
+    <Layout>
+      <App />
+    </Layout>
+  </React.StrictMode>
+);
+`;
+}
+
+function generateEntryServer(): string {
+  return `import React from "react";
+import { renderToReadableStream } from "react-dom/server";
+import Layout from "./layout";
+import App from "./app";
+
+export async function render(_url: string): Promise<ReadableStream> {
+  const stream = await renderToReadableStream(
+    <React.StrictMode>
+      <Layout>
+        <App />
+      </Layout>
+    </React.StrictMode>,
+    {
+      onError(error: unknown) {
+        console.error("[voltx] SSR render error:", error);
+      },
+    }
+  );
+  return stream;
+}
+`;
+}
+
+function generateLayoutComponent(projectName: string): string {
+  return `import React from "react";
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-background text-foreground font-sans">
+      <header className="border-b border-border px-6 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">⚡</span>
+          <span className="font-semibold">${projectName}</span>
+        </div>
+        <a href="https://github.com/codewithshail/voltx" target="_blank" rel="noopener noreferrer" className="text-muted text-sm hover:text-foreground transition-colors">
+          Built with VoltX
+        </a>
+      </header>
+      <main>{children}</main>
+    </div>
+  );
+}
+`;
+}
+
+function generateGlobalCSS(useShadcn = false): string {
+  if (useShadcn) {
+    return `@import "tailwindcss";
+
+@theme inline {
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+}
+
+:root {
+  --background: 0 0% 4%;
+  --foreground: 0 0% 93%;
+  --card: 0 0% 6%;
+  --card-foreground: 0 0% 93%;
+  --popover: 0 0% 6%;
+  --popover-foreground: 0 0% 93%;
+  --primary: 0 0% 93%;
+  --primary-foreground: 0 0% 6%;
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 0 0% 93%;
+  --muted: 0 0% 12%;
+  --muted-foreground: 0 0% 55%;
+  --accent: 0 0% 12%;
+  --accent-foreground: 0 0% 93%;
+  --destructive: 0 62% 50%;
+  --border: 0 0% 14%;
+  --input: 0 0% 14%;
+  --ring: 0 0% 83%;
+  --chart-1: 220 70% 50%;
+  --chart-2: 160 60% 45%;
+  --chart-3: 30 80% 55%;
+  --chart-4: 280 65% 60%;
+  --chart-5: 340 75% 55%;
+  --sidebar: 0 0% 5%;
+  --sidebar-foreground: 0 0% 93%;
+  --sidebar-primary: 0 0% 93%;
+  --sidebar-primary-foreground: 0 0% 6%;
+  --sidebar-accent: 0 0% 12%;
+  --sidebar-accent-foreground: 0 0% 93%;
+  --sidebar-border: 0 0% 14%;
+  --sidebar-ring: 0 0% 83%;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border-color: var(--color-border);
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
+}
+`;
+  }
+
+  return `@import "tailwindcss";
+
+@theme {
+  --color-background: #0a0a0a;
+  --color-foreground: #ededed;
+  --color-muted: #888888;
+  --color-border: #222222;
+  --color-primary: #2563eb;
+  --color-accent: #a78bfa;
+  --font-sans: system-ui, -apple-system, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+`;
+}
+
+function generateCnUtil(): string {
+  return `import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+`;
+}
+
+function generateComponentsJson(): string {
+  return JSON.stringify({
+    "$schema": "https://ui.shadcn.com/schema.json",
+    style: "new-york",
+    rsc: false,
+    tsx: true,
+    tailwind: {
+      config: "",
+      css: "src/globals.css",
+      baseColor: "neutral",
+      cssVariables: true,
+    },
+    aliases: {
+      components: "@/components",
+      utils: "@/lib/utils",
+      ui: "@/components/ui",
+      lib: "@/lib",
+      hooks: "@/hooks",
+    },
+  }, null, 2) + "\n";
+}
+
+function generateAppComponent(projectName: string, template: string): string {
+  if (template === "blank") {
+    return `import React, { useState, useEffect } from "react";
+
+export default function App() {
+  const [status, setStatus] = useState<string>("checking...");
+
+  useEffect(() => {
+    fetch("/api")
+      .then((res) => res.json())
+      .then((data) => setStatus(data.status || "ok"))
+      .catch(() => setStatus("error"));
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-60px)] px-6 py-12">
+      <div className="text-center max-w-2xl w-full">
+        {/* Hero */}
+        <div className="relative mb-8">
+          <div className="absolute inset-0 blur-3xl opacity-20 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 rounded-full" />
+          <div className="relative text-7xl mb-4">⚡</div>
+        </div>
+        <h1 className="text-5xl font-bold tracking-tight mb-3 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
+          \${"\${projectName}"}
+        </h1>
+        <p className="text-muted text-lg mb-10">The AI-first full-stack framework</p>
+
+        {/* Status cards */}
+        <div className="flex gap-4 justify-center mb-10">
+          <div className="px-6 py-4 rounded-xl bg-white/5 border border-border backdrop-blur-sm">
+            <div className="text-xs text-muted mb-1 uppercase tracking-wider">Server</div>
+            <div className={\`text-sm font-medium \${status === "ok" ? "text-emerald-400" : "text-red-400"}\`}>
+              <span className={\`inline-block w-2 h-2 rounded-full mr-2 \${status === "ok" ? "bg-emerald-400 animate-pulse" : "bg-red-400"}\`} />
+              {status}
+            </div>
+          </div>
+          <div className="px-6 py-4 rounded-xl bg-white/5 border border-border backdrop-blur-sm">
+            <div className="text-xs text-muted mb-1 uppercase tracking-wider">Frontend</div>
+            <div className="text-sm font-medium text-emerald-400">
+              <span className="inline-block w-2 h-2 rounded-full mr-2 bg-emerald-400 animate-pulse" />
+              React + Vite
+            </div>
+          </div>
+          <div className="px-6 py-4 rounded-xl bg-white/5 border border-border backdrop-blur-sm">
+            <div className="text-xs text-muted mb-1 uppercase tracking-wider">CSS</div>
+            <div className="text-sm font-medium text-sky-400">Tailwind v4</div>
+          </div>
+        </div>
+
+        {/* Get started */}
+        <div className="bg-white/[0.03] border border-border rounded-2xl p-8 text-left backdrop-blur-sm">
+          <h2 className="text-sm font-medium text-muted mb-6 uppercase tracking-wider">Get started</h2>
+          <div className="space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 text-sm shrink-0">1</div>
+              <div>
+                <code className="text-purple-400 text-sm">src/app.tsx</code>
+                <p className="text-muted text-sm mt-1">Edit this file to build your UI</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-4">
+              <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 text-sm shrink-0">2</div>
+              <div>
+                <code className="text-blue-400 text-sm">api/</code>
+                <p className="text-muted text-sm mt-1">Add API routes here (file-based routing)</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-4">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-sm shrink-0">3</div>
+              <div>
+                <code className="text-emerald-400 text-sm">src/components/</code>
+                <p className="text-muted text-sm mt-1">Create React components with Tailwind CSS</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Links */}
+        <div className="flex gap-6 justify-center mt-8">
+          <a href="https://github.com/codewithshail/voltx" target="_blank" rel="noopener noreferrer" className="text-sm text-muted hover:text-foreground transition-colors">
+            GitHub →
+          </a>
+          <a href="https://voltx.co.in" target="_blank" rel="noopener noreferrer" className="text-sm text-muted hover:text-foreground transition-colors">
+            Docs →
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+  }
+
+  // Chat/RAG/Agent templates get a chat UI
+  const apiEndpoint = template === "agent-app" ? "/api/agent" : template === "rag-app" ? "/api/rag/query" : "/api/chat";
+  const isAgent = template === "agent-app";
+  const isRag = template === "rag-app";
+
+  let emptyStateTitle = "Start a conversation";
+  let emptyStateHint = "Type a message below to chat with AI";
+  let accentColor = "blue";
+  let inputPlaceholder = "Type a message...";
+
+  if (isAgent) {
+    emptyStateTitle = "Talk to your AI agent";
+    emptyStateHint = "The agent can use tools like Calculator and Date/Time";
+    accentColor = "purple";
+    inputPlaceholder = "Ask the agent anything...";
+  } else if (isRag) {
+    emptyStateTitle = "Ask your documents";
+    emptyStateHint = "Query your knowledge base — ingest docs via POST /api/rag/ingest";
+    accentColor = "emerald";
+    inputPlaceholder = "Ask a question about your documents...";
+  }
+
+  return `import React, { useState, useRef, useEffect, useCallback } from "react";
+
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+}
+
+export default function App() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const sendMessage = useCallback(async () => {
+    const text = input.trim();
+    if (!text || isLoading) return;
+
+    const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: text };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setIsLoading(true);
+
+    const assistantMsg: Message = { id: crypto.randomUUID(), role: "assistant", content: "" };
+    setMessages((prev) => [...prev, assistantMsg]);
+
+    try {${isAgent ? `
+      const res = await fetch("${apiEndpoint}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: text }),
+      });
+      const data = await res.json();
+      setMessages((prev) =>
+        prev.map((m) => m.id === assistantMsg.id ? { ...m, content: data.content || "No response" } : m)
+      );` : `
+      const res = await fetch("${apiEndpoint}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({${isRag ? ` question: text ` : ` messages: [...messages, { role: "user", content: text }] `}}),
+      });
+
+      if (!res.body) throw new Error("No response body");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6);
+          if (data === "[DONE]") break;
+          try {
+            const parsed = JSON.parse(data);
+            const chunk = parsed.textDelta ?? parsed.content ?? parsed.choices?.[0]?.delta?.content ?? "";
+            if (chunk) {
+              fullContent += chunk;
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantMsg.id ? { ...m, content: fullContent } : m)
+              );
+            }
+          } catch {}
+        }
+      }`}
+    } catch (err) {
+      setMessages((prev) =>
+        prev.map((m) => m.id === assistantMsg.id ? { ...m, content: "Error: " + (err instanceof Error ? err.message : String(err)) } : m)
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [input, isLoading, messages]);
+
+  return (
+    <div className="h-[calc(100vh-60px)] flex flex-col">
+      <main className="flex-1 overflow-y-auto px-4 py-6">
+        <div className="max-w-3xl mx-auto">
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+              <div className="relative mb-6">
+                <div className="absolute inset-0 blur-2xl opacity-20 bg-${accentColor}-500 rounded-full" />
+                <div className="relative text-5xl">⚡</div>
+              </div>
+              <h2 className="text-2xl font-semibold mb-2">${emptyStateTitle}</h2>
+              <p className="text-muted text-sm max-w-md">${emptyStateHint}</p>
+              <div className="flex gap-2 mt-6">
+                ${isAgent ? `<button onClick={() => { setInput("What is 42 * 17?"); }} className="px-3 py-1.5 text-xs rounded-full bg-white/5 border border-border text-muted hover:text-foreground hover:border-${accentColor}-500/50 transition-all cursor-pointer">
+                  What is 42 × 17?
+                </button>
+                <button onClick={() => { setInput("What day is it today?"); }} className="px-3 py-1.5 text-xs rounded-full bg-white/5 border border-border text-muted hover:text-foreground hover:border-${accentColor}-500/50 transition-all cursor-pointer">
+                  What day is it?
+                </button>` : isRag ? `<button onClick={() => { setInput("Summarize the main topics"); }} className="px-3 py-1.5 text-xs rounded-full bg-white/5 border border-border text-muted hover:text-foreground hover:border-${accentColor}-500/50 transition-all cursor-pointer">
+                  Summarize main topics
+                </button>
+                <button onClick={() => { setInput("What are the key findings?"); }} className="px-3 py-1.5 text-xs rounded-full bg-white/5 border border-border text-muted hover:text-foreground hover:border-${accentColor}-500/50 transition-all cursor-pointer">
+                  Key findings
+                </button>` : `<button onClick={() => { setInput("Hello! What can you do?"); }} className="px-3 py-1.5 text-xs rounded-full bg-white/5 border border-border text-muted hover:text-foreground hover:border-${accentColor}-500/50 transition-all cursor-pointer">
+                  Hello! What can you do?
+                </button>
+                <button onClick={() => { setInput("Tell me a fun fact"); }} className="px-3 py-1.5 text-xs rounded-full bg-white/5 border border-border text-muted hover:text-foreground hover:border-${accentColor}-500/50 transition-all cursor-pointer">
+                  Tell me a fun fact
+                </button>`}
+              </div>
+            </div>
+          )}
+          {messages.map((msg) => (
+            <div key={msg.id} className={\`mb-6 flex \${msg.role === "user" ? "justify-end" : "justify-start"}\`}>
+              <div className={\`flex items-start gap-3 max-w-[80%] \${msg.role === "user" ? "flex-row-reverse" : ""}\`}>
+                <div className={\`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 \${
+                  msg.role === "user" ? "bg-${accentColor}-500 text-white" : "bg-white/10 text-muted"
+                }\`}>
+                  {msg.role === "user" ? "Y" : "⚡"}
+                </div>
+                <div className={\`px-4 py-3 rounded-2xl whitespace-pre-wrap leading-relaxed text-sm \${
+                  msg.role === "user"
+                    ? "bg-${accentColor}-500 text-white rounded-br-md"
+                    : "bg-white/[0.05] border border-border rounded-bl-md"
+                }\`}>
+                  {msg.content || (isLoading && msg.role === "assistant" ? (
+                    <span className="flex gap-1">
+                      <span className="w-2 h-2 bg-muted rounded-full animate-bounce [animation-delay:0ms]" />
+                      <span className="w-2 h-2 bg-muted rounded-full animate-bounce [animation-delay:150ms]" />
+                      <span className="w-2 h-2 bg-muted rounded-full animate-bounce [animation-delay:300ms]" />
+                    </span>
+                  ) : "")}
+                </div>
+              </div>
+            </div>
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+      </main>
+      <footer className="border-t border-border px-4 py-4">
+        <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="max-w-3xl mx-auto flex gap-3">
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="${inputPlaceholder}"
+            disabled={isLoading}
+            className="flex-1 px-4 py-3 rounded-xl bg-white/[0.05] border border-border text-foreground placeholder:text-muted/50 outline-none focus:border-${accentColor}-500/50 focus:ring-1 focus:ring-${accentColor}-500/25 transition-all disabled:opacity-50"
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !input.trim()}
+            className="px-6 py-3 rounded-xl font-medium text-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed bg-${accentColor}-500 hover:bg-${accentColor}-400 text-white cursor-pointer"
+          >
+            {isLoading ? (
+              <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : "Send"}
+          </button>
+        </form>
+      </footer>
+    </div>
+  );
+}
+`;
+}
+
+// ─── Public asset generators ─────────────────────────────────────────────────
+
+function generateFaviconSVG(): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="6" fill="#0a0a0a"/>
+  <path d="M18.5 4L8 18h7l-1.5 10L24 14h-7l1.5-10z" fill="#facc15" stroke="#facc15" stroke-width="0.5" stroke-linejoin="round"/>
+</svg>
+`;
+}
+
+function generateRobotsTxt(): string {
+  return `# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+Sitemap: /sitemap.xml
+`;
+}
+
+function generateWebManifest(projectName: string): string {
+  return JSON.stringify({
+    name: projectName,
+    short_name: projectName,
+    icons: [
+      { src: "/favicon.svg", sizes: "any", type: "image/svg+xml" },
+    ],
+    theme_color: "#0a0a0a",
+    background_color: "#0a0a0a",
+    display: "standalone",
+  }, null, 2) + "\n";
 }

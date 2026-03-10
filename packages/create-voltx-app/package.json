@@ -1,6 +1,6 @@
 {
   "name": "create-voltx-app",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Create a new VoltX AI-powered app with one command",
   "bin": {
     "create-voltx-app": "./dist/index.js"

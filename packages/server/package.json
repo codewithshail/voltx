@@ -1,6 +1,6 @@
 {
   "name": "@voltx/server",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "VoltX Server — Hono-based HTTP server with file-based routing, SSE streaming, and static file serving",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -23,9 +23,19 @@
     "hono": "^4.7.0",
     "@hono/node-server": "^1.14.0"
   },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
+  },
   "devDependencies": {
     "tsup": "^8.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
   },
   "keywords": ["voltx", "server", "hono", "http", "routing", "file-based", "sse", "streaming", "middleware"],
   "license": "MIT",

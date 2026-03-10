@@ -1,9 +1,12 @@
 // @voltx/cli — Production server start
 // Runs the built production bundle from dist/
+// Full-stack: serves dist/client/ as static + SSR from dist/server/
+// API-only: runs dist/index.mjs directly
 
 import { spawn } from "node:child_process";
 import { resolve, join } from "node:path";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
+import { loadEnv } from "@voltx/core";
 
 export interface StartOptions {
   /** Port override */
@@ -46,29 +49,20 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
     process.exit(1);
   }
 
+  // Load production env vars from .env files
+  loadEnv("production", cwd);
+
   const env: Record<string, string> = {
     ...process.env as Record<string, string>,
     NODE_ENV: "production",
   };
 
-  // Parse .env file and inject into environment
-  const envFile = resolve(cwd, ".env");
-  if (existsSync(envFile)) {
-    const envContent = readFileSync(envFile, "utf-8");
-    for (const line of envContent.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx === -1) continue;
-      const key = trimmed.slice(0, eqIdx).trim();
-      const value = trimmed.slice(eqIdx + 1).trim();
-      env[key] = value;
-    }
-  }
-
   if (port) {
     env.PORT = String(port);
   }
+
+  // Detect full-stack build
+  const hasClientBuild = existsSync(resolve(distDir, "client"));
 
   console.log("");
   console.log("  ⚡ VoltX Production Server");
@@ -77,7 +71,7 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
   if (port) {
     console.log(`  Port:    ${port}`);
   }
-  console.log(`  Mode:    production`);
+  console.log(`  Mode:    ${hasClientBuild ? "full-stack" : "API-only"}`);
   console.log("  ─────────────────────────────────");
   console.log("");
 
@@ -108,13 +102,13 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
 /** Find the entry file in the dist directory */
 function findDistEntry(distDir: string): string | null {
   const candidates = [
+    "server.mjs",
+    "server.js",
     "index.mjs",
     "index.js",
     "index.cjs",
     "main.mjs",
     "main.js",
-    "src/index.mjs",
-    "src/index.js",
   ];
 
   for (const candidate of candidates) {

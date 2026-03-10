@@ -38,6 +38,16 @@ export type {
 export { Hono } from "hono";
 export type { Context } from "hono";
 
+// ─── Vite Integration ────────────────────────────────────────────────────────
+
+export { createViteDevConfig } from "./vite.js";
+export type { ViteDevOptions } from "./vite.js";
+
+// ─── SSR (Server-Side Rendering) ─────────────────────────────────────────────
+
+export { registerSSR } from "./ssr.js";
+export type { SSROptions } from "./ssr.js";
+
 // ─── Version ─────────────────────────────────────────────────────────────────
 
 export const VERSION = "0.3.0";

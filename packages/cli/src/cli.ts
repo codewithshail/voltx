@@ -25,13 +25,14 @@ async function main() {
     case "create": {
       const projectName = args[1];
       if (!projectName || projectName.startsWith("-")) {
-        console.error("[voltx] Usage: voltx create <project-name> [--template chatbot|rag-app|agent-app] [--auth better-auth|jwt|none]");
+        console.error("[voltx] Usage: voltx create <project-name> [--template chatbot|rag-app|agent-app] [--auth better-auth|jwt|none] [--shadcn]");
         process.exit(1);
       }
       const template = parseFlag("--template") as "chatbot" | "rag-app" | "agent-app" | "blank" | undefined;
       const auth = parseFlag("--auth") as "better-auth" | "jwt" | "none" | undefined;
+      const useShadcn = args.includes("--shadcn");
       const { createProject } = await import("./create.js");
-      await createProject({ name: projectName, template: template ?? "blank", auth: auth ?? "none" });
+      await createProject({ name: projectName, template: template ?? "blank", auth: auth ?? "none", shadcn: useShadcn });
       break;
     }
 
@@ -79,7 +80,7 @@ async function main() {
         console.error("[voltx] Usage: voltx generate <type> <name>");
         console.error("");
         console.error("  Types:");
-        console.error("    route <path>    Generate a new API route     (e.g., api/users)");
+        console.error("    route <path>    Generate a new API route     (e.g., users)");
         console.error("    agent <name>    Generate a new agent         (e.g., assistant)");
         console.error("    tool  <name>    Generate a new tool          (e.g., search)");
         console.error("    job   <name>    Generate a new background job (e.g., cleanup)");
@@ -136,7 +137,7 @@ function printHelp(): void {
 
   Dev Options:
     --port, -p <number>        Port override
-    --entry <file>             Custom entry file (default: src/index.ts)
+    --entry <file>             Custom entry file (default: server.ts)
     --no-clear                 Don't clear screen on restart
 
   Build Options:
@@ -151,7 +152,7 @@ function printHelp(): void {
     --entry <file>             Entry file within output dir
 
   Generate Types:
-    route <path>               API route      (e.g., voltx generate route api/users)
+    route <path>               API route      (e.g., voltx generate route users)
     agent <name>               Agent          (e.g., voltx generate agent assistant)
     tool  <name>               Tool           (e.g., voltx generate tool search)
     job   <name>               Background job (e.g., voltx generate job cleanup)
@@ -161,7 +162,7 @@ function printHelp(): void {
     voltx dev --port 4000
     voltx build --sourcemap
     voltx start
-    voltx generate route api/users --method GET
+    voltx generate route users --method GET
     voltx generate agent assistant
   `);
 }

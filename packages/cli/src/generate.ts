@@ -43,17 +43,17 @@ export async function runGenerate(options: GenerateOptions): Promise<void> {
 // ─── Route Generator ─────────────────────────────────────────────────────────
 
 function generateRoute(cwd: string, name: string, method = "POST"): void {
-  // name can be "api/users" or "api/chat" or just "health"
+  // name can be "users" or "chat" or "rag/query"
   const routePath = name.startsWith("/") ? name.slice(1) : name;
-  const filePath = join(cwd, "src", "routes", `${routePath}.ts`);
+  const filePath = join(cwd, "api", `${routePath}.ts`);
 
   if (existsSync(filePath)) {
-    console.error(`[voltx] Route already exists: src/routes/${routePath}.ts`);
+    console.error(`[voltx] Route already exists: api/${routePath}.ts`);
     process.exit(1);
   }
 
   const upperMethod = method.toUpperCase();
-  const urlPath = "/" + routePath;
+  const urlPath = "/api/" + routePath;
 
   const content = `// ${upperMethod} ${urlPath}
 import type { Context } from "@voltx/server";
@@ -64,17 +64,17 @@ export async function ${upperMethod}(c: Context) {
 `;
 
   writeFileSafe(filePath, content);
-  console.log(`  ✓ Created route: src/routes/${routePath}.ts`);
+  console.log(`  ✓ Created route: api/${routePath}.ts`);
   console.log(`    ${upperMethod} ${urlPath}`);
 }
 
 // ─── Agent Generator ─────────────────────────────────────────────────────────
 
 function generateAgent(cwd: string, name: string): void {
-  const filePath = join(cwd, "src", "agents", `${name}.ts`);
+  const filePath = join(cwd, "agents", `${name}.ts`);
 
   if (existsSync(filePath)) {
-    console.error(`[voltx] Agent already exists: src/agents/${name}.ts`);
+    console.error(`[voltx] Agent already exists: agents/${name}.ts`);
     process.exit(1);
   }
 
@@ -98,16 +98,16 @@ export const ${toCamelCase(name)} = createAgent({
 `;
 
   writeFileSafe(filePath, content);
-  console.log(`  ✓ Created agent: src/agents/${name}.ts`);
+  console.log(`  ✓ Created agent: agents/${name}.ts`);
 }
 
 // ─── Tool Generator ──────────────────────────────────────────────────────────
 
 function generateTool(cwd: string, name: string): void {
-  const filePath = join(cwd, "src", "tools", `${name}.ts`);
+  const filePath = join(cwd, "tools", `${name}.ts`);
 
   if (existsSync(filePath)) {
-    console.error(`[voltx] Tool already exists: src/tools/${name}.ts`);
+    console.error(`[voltx] Tool already exists: tools/${name}.ts`);
     process.exit(1);
   }
 
@@ -131,16 +131,16 @@ export const ${toCamelCase(name)}Tool = {
 `;
 
   writeFileSafe(filePath, content);
-  console.log(`  ✓ Created tool: src/tools/${name}.ts`);
+  console.log(`  ✓ Created tool: tools/${name}.ts`);
 }
 
 // ─── Job Generator ───────────────────────────────────────────────────────────
 
 function generateJob(cwd: string, name: string): void {
-  const filePath = join(cwd, "src", "jobs", `${name}.ts`);
+  const filePath = join(cwd, "jobs", `${name}.ts`);
 
   if (existsSync(filePath)) {
-    console.error(`[voltx] Job already exists: src/jobs/${name}.ts`);
+    console.error(`[voltx] Job already exists: jobs/${name}.ts`);
     process.exit(1);
   }
 
@@ -167,7 +167,7 @@ export async function run(ctx: any, data?: Record<string, unknown>) {
 `;
 
   writeFileSafe(filePath, content);
-  console.log(`  ✓ Created job: src/jobs/${name}.ts`);
+  console.log(`  ✓ Created job: jobs/${name}.ts`);
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

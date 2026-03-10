@@ -1,12 +1,14 @@
 // @voltx/cli — Production build
-// Bundles the VoltX app for production using tsup (server) and optionally Vite (frontend).
+// Full-stack: 3-phase build (client + SSR + server)
+// API-only: single server build with tsup
 
 import { spawn } from "node:child_process";
 import { resolve, join } from "node:path";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
+import { loadEnv } from "@voltx/core";
 
 export interface BuildOptions {
-  /** Entry file (default: src/index.ts) */
+  /** Entry file (default: server.ts or src/index.ts) */
   entry?: string;
   /** Output directory (default: dist) */
   outDir?: string;
@@ -19,8 +21,9 @@ export interface BuildOptions {
 /**
  * Build the VoltX app for production.
  *
- * Uses tsup to bundle the server-side TypeScript into a single optimized JS file.
- * If a frontend directory exists (src/frontend), also builds it with Vite.
+ * Detects whether the project is full-stack (has vite.config.ts or server.ts).
+ * - Full-stack: builds client bundle, SSR bundle, and server bundle
+ * - API-only: builds server bundle only (existing behavior)
  */
 export async function runBuild(options: BuildOptions = {}): Promise<void> {
   const cwd = process.cwd();
@@ -32,7 +35,7 @@ export async function runBuild(options: BuildOptions = {}): Promise<void> {
   } = options;
 
   if (!entry) {
-    console.error("[voltx] Could not find entry point. Expected src/index.ts");
+    console.error("[voltx] Could not find entry point. Expected server.ts or src/index.ts");
     process.exit(1);
   }
 
@@ -42,11 +45,20 @@ export async function runBuild(options: BuildOptions = {}): Promise<void> {
     process.exit(1);
   }
 
+  // Load production env vars
+  loadEnv("production", cwd);
+
+  // Full-stack if vite.config.ts exists or server.ts exists
+  const hasViteConfig = existsSync(resolve(cwd, "vite.config.ts"));
+  const hasServerEntry = existsSync(resolve(cwd, "server.ts"));
+  const isFullStack = hasViteConfig || hasServerEntry;
+
   console.log("");
   console.log("  ⚡ VoltX Build");
   console.log("  ─────────────────────────────────");
   console.log(`  Entry:   ${entry}`);
   console.log(`  Output:  ${outDir}/`);
+  console.log(`  Mode:    ${isFullStack ? "full-stack" : "API-only"}`);
   console.log(`  Minify:  ${minify}`);
   console.log("  ─────────────────────────────────");
   console.log("");
@@ -54,56 +66,10 @@ export async function runBuild(options: BuildOptions = {}): Promise<void> {
   // Ensure output directory exists
   mkdirSync(resolve(cwd, outDir), { recursive: true });
 
-  // ─── Step 1: Build server with tsup ────────────────────────────────
-
-  console.log("  [1/2] Building server...");
-
-  const tsupArgs = [
-    entry,
-    "--format", "esm",
-    "--out-dir", outDir,
-    "--clean",
-    "--target", "node20",
-  ];
-
-  if (minify) tsupArgs.push("--minify");
-  if (sourcemap) tsupArgs.push("--sourcemap");
-
-  // Add external packages — don't bundle node_modules
-  // tsup auto-externalizes dependencies from package.json
-  tsupArgs.push("--no-splitting");
-
-  const tsupBin = findBin(cwd, "tsup");
-
-  await runCommand(
-    tsupBin ?? "npx",
-    tsupBin ? tsupArgs : ["tsup", ...tsupArgs],
-    cwd,
-  );
-
-  console.log("  ✓ Server built successfully");
-
-  // ─── Step 2: Build frontend with Vite (if present) ─────────────────
-
-  const frontendDir = resolve(cwd, "src", "frontend");
-  const viteConfig = resolve(cwd, "vite.config.ts");
-  const hasFrontend = existsSync(frontendDir) || existsSync(viteConfig);
-
-  if (hasFrontend) {
-    console.log("  [2/2] Building frontend...");
-
-    const viteBin = findBin(cwd, "vite");
-    const viteArgs = ["build", "--outDir", join(outDir, "public")];
-
-    await runCommand(
-      viteBin ?? "npx",
-      viteBin ? viteArgs : ["vite", ...viteArgs],
-      cwd,
-    );
-
-    console.log("  ✓ Frontend built successfully");
+  if (isFullStack) {
+    await buildFullStack(cwd, entry, outDir, minify, sourcemap);
   } else {
-    console.log("  [2/2] No frontend found, skipping...");
+    await buildApiOnly(cwd, entry, outDir, minify, sourcemap);
   }
 
   console.log("");
@@ -112,9 +78,109 @@ export async function runBuild(options: BuildOptions = {}): Promise<void> {
   console.log("");
 }
 
+
+// ─── Full-stack build (client + SSR + server) ────────────────────────────────
+
+async function buildFullStack(
+  cwd: string,
+  entry: string,
+  outDir: string,
+  minify: boolean,
+  sourcemap: boolean,
+): Promise<void> {
+  // Check if SSR entry exists
+  const ssrEntry = existsSync(join(cwd, "src", "entry-server.tsx"))
+    ? "src/entry-server.tsx"
+    : null;
+  const totalSteps = ssrEntry ? 3 : 2;
+
+  // Step 1: Build client bundle with Vite
+  console.log(`  [1/${totalSteps}] Building client...`);
+  const viteBin = findBin(cwd, "vite");
+  const clientOutDir = join(outDir, "client");
+
+  await runCommand(
+    viteBin ?? "npx",
+    viteBin
+      ? ["build", "--outDir", clientOutDir]
+      : ["vite", "build", "--outDir", clientOutDir],
+    cwd,
+  );
+  console.log("  ✓ Client built");
+
+  // Step 2: Build SSR bundle (if entry-server.tsx exists)
+  if (ssrEntry) {
+    console.log(`  [2/${totalSteps}] Building SSR bundle...`);
+    const serverOutDir = join(outDir, "server");
+
+    await runCommand(
+      viteBin ?? "npx",
+      viteBin
+        ? ["build", "--ssr", ssrEntry, "--outDir", serverOutDir]
+        : ["vite", "build", "--ssr", ssrEntry, "--outDir", serverOutDir],
+      cwd,
+    );
+    console.log("  ✓ SSR bundle built");
+  }
+
+  // Step 3 (or 2): Build server with tsup (no --clean to preserve client/SSR bundles)
+  const serverStep = ssrEntry ? 3 : 2;
+  console.log(`  [${serverStep}/${totalSteps}] Building server...`);
+  await buildServer(cwd, entry, outDir, minify, sourcemap, false);
+  console.log("  ✓ Server built");
+}
+
+// ─── API-only build (server only) ────────────────────────────────────────────
+
+async function buildApiOnly(
+  cwd: string,
+  entry: string,
+  outDir: string,
+  minify: boolean,
+  sourcemap: boolean,
+): Promise<void> {
+  console.log("  [1/1] Building server...");
+  await buildServer(cwd, entry, outDir, minify, sourcemap);
+  console.log("  ✓ Server built");
+}
+
+// ─── Server build (tsup) ─────────────────────────────────────────────────────
+
+async function buildServer(
+  cwd: string,
+  entry: string,
+  outDir: string,
+  minify: boolean,
+  sourcemap: boolean,
+  clean: boolean = true,
+): Promise<void> {
+  const tsupBin = findBin(cwd, "tsup");
+  const tsupArgs = [
+    entry,
+    "--format", "esm",
+    "--out-dir", outDir,
+    "--target", "node20",
+    "--no-splitting",
+  ];
+
+  if (clean) tsupArgs.push("--clean");
+  if (minify) tsupArgs.push("--minify");
+  if (sourcemap) tsupArgs.push("--sourcemap");
+
+  await runCommand(
+    tsupBin ?? "npx",
+    tsupBin ? tsupArgs : ["tsup", ...tsupArgs],
+    cwd,
+  );
+}
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+
 /** Find the app entry point */
 function findEntryPoint(cwd: string): string | null {
   const candidates = [
+    "server.ts",
+    "server.js",
     "src/index.ts",
     "src/index.js",
     "src/index.mts",

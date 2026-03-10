@@ -1,6 +1,6 @@
 <p align="center">
   <strong>@voltx/server</strong><br/>
-  <em>Hono-based HTTP server with file-based routing and SSE streaming</em>
+  <em>Hono-based HTTP server with file-based routing, SSR, and SSE streaming</em>
 </p>
 
 <p align="center">
@@ -11,7 +11,7 @@
 
 ---
 
-The HTTP layer of the [VoltX](https://github.com/codewithshail/voltx) framework. Built on [Hono](https://hono.dev) with file-based routing (Next.js-style), CORS, logging, error handling, and static file serving out of the box.
+The HTTP layer of the [VoltX](https://github.com/codewithshail/voltx) framework. Built on [Hono](https://hono.dev) with file-based routing, React SSR (streaming), CORS, logging, error handling, and static file serving.
 
 ## Installation
 
@@ -22,34 +22,63 @@ npm install @voltx/server
 ## Quick Start
 
 ```ts
-import { createServer } from "@voltx/server";
+import { Hono } from "hono";
+import { registerSSR } from "@voltx/server";
 
-const server = createServer({
-  port: 3000,
-  routesDir: "src/routes",
-  cors: true,
-  logger: true,
+const app = new Hono();
+
+// API routes
+app.get("/api", (c) => c.json({ status: "ok" }));
+
+// SSR — renders React on the server, hydrates on the client
+registerSSR(app, null, {
+  title: "My App",
+  entryServer: "src/entry-server.tsx",
+  entryClient: "src/entry-client.tsx",
 });
 
-await server.start();
-// ⚡ VoltX server running at http://localhost:3000
+export default app;
 ```
+
+## Server-Side Rendering
+
+`registerSSR()` provides streaming React SSR with zero config:
+
+- **Dev mode** — works with `@hono/vite-dev-server` for HMR
+- **Production** — reads the Vite client manifest for hashed asset paths, serves pre-built SSR bundle
+- **Streaming** — uses `renderToReadableStream` for fast TTFB
+- **Public env** — injects `window.__VOLTX_ENV__` for `VITE_*` variables
+
+```ts
+import { registerSSR } from "@voltx/server";
+
+registerSSR(app, viteInstance, {
+  title: "My App",
+  entryServer: "src/entry-server.tsx",
+  entryClient: "src/entry-client.tsx",
+});
+```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `title` | `string` | HTML `<title>` |
+| `entryServer` | `string` | Path to SSR entry (exports `render()`) |
+| `entryClient` | `string` | Path to client hydration entry |
 
 ## File-Based Routing
 
-Drop files in `src/routes/` and they become API endpoints automatically:
+Drop files in `api/` and they become API endpoints:
 
 ```
-src/routes/index.ts           → GET /
-src/routes/api/chat.ts        → POST /api/chat
-src/routes/api/users/[id].ts  → GET /api/users/:id
-src/routes/api/[...slug].ts   → /api/* (catch-all)
+api/index.ts              → GET /api
+api/chat.ts               → POST /api/chat
+api/users/[id].ts         → GET /api/users/:id
+api/rag/query.ts          → POST /api/rag/query
 ```
 
 Each file exports HTTP method handlers:
 
 ```ts
-// src/routes/api/chat.ts
 import type { Context } from "@voltx/server";
 
 export async function POST(c: Context) {
@@ -64,24 +93,12 @@ export function GET(c: Context) {
 
 ## Features
 
-- **File-based routing** — Next.js-style, zero config
-- **Dynamic routes** — `[param]` → `:param`, `[...slug]` → catch-all
+- **React SSR** — streaming server-side rendering with `registerSSR()`
+- **File-based routing** — Next.js-style `api/` directory
+- **Dynamic routes** — `[param]` and `[...slug]` catch-all
 - **Built-in middleware** — CORS, request logging, error handling
-- **Static file serving** — Serves from `public/` directory
-- **Per-route middleware** — Export `middleware` from any route file
-- **Graceful shutdown** — Clean server stop with `server.stop()`
-- **Full Hono access** — `server.app` gives you the raw Hono instance
-
-## Configuration
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `port` | `number` | `3000` | Server port |
-| `hostname` | `string` | `"0.0.0.0"` | Bind address |
-| `routesDir` | `string` | `"src/routes"` | Routes directory |
-| `staticDir` | `string` | `"public"` | Static files directory |
-| `cors` | `boolean \| object` | `true` | CORS configuration |
-| `logger` | `boolean` | `true` (dev) | Request logging |
+- **Static file serving** — `public/` directory (favicon, robots.txt, manifest)
+- **Full Hono access** — use any Hono middleware or plugin
 
 ## Part of VoltX
 

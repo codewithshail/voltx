@@ -11,18 +11,12 @@
 
 ---
 
-Command-line tools for the [VoltX](https://github.com/codewithshail/voltx) framework. Scaffold projects, run the dev server, build for production, and generate code.
+Command-line tools for the [VoltX](https://github.com/codewithshail/voltx) framework. Full-stack dev server (Vite + Hono), production build with SSR, code generation, and project scaffolding.
 
 ## Installation
 
 ```bash
-npm install -g @voltx/cli
-```
-
-Or use directly with npx:
-
-```bash
-npx @voltx/cli dev
+npm install @voltx/cli
 ```
 
 ## Commands
@@ -30,21 +24,23 @@ npx @voltx/cli dev
 ### Development
 
 ```bash
-voltx dev          # Start dev server with hot reload
-voltx build        # Build for production
+voltx dev          # Start Vite dev server with HMR + backend
+voltx build        # Build for production (client + SSR + server)
 voltx start        # Start production server
 ```
+
+`voltx dev` starts a single process that serves both the React frontend and Hono API backend with hot module replacement. No separate frontend/backend servers needed.
 
 ### Create a New Project
 
 ```bash
 voltx create my-app
 voltx create my-app --template chatbot
-voltx create my-app --template rag-app
-voltx create my-app --template agent-app
+voltx create my-app --template agent-app --shadcn
+voltx create my-app --template rag-app --auth jwt
 ```
 
-> For the full interactive experience with tool selection, RAG toggle, and API key management, use `npx create-voltx-app` instead.
+> For the full interactive experience with tool selection, RAG toggle, shadcn/ui, and API key management, use `npx create-voltx-app` instead.
 
 ### Code Generation
 
@@ -52,19 +48,54 @@ voltx create my-app --template agent-app
 voltx generate route api/users      # New API route
 voltx generate agent assistant       # New agent definition
 voltx generate tool search           # New tool for agents
-voltx generate job cleanup           # New background job
 ```
 
-## Templates
+## Build Pipeline
 
-| Template | What you get | Frontend UI |
-|----------|-------------|-------------|
-| `blank` | Minimal server with file-based routing | — |
-| `chatbot` | Streaming chat + memory | Chat interface |
-| `rag-app` | Document Q&A + vector search | Ingest + query split view |
-| `agent-app` | AI agent with calculator + datetime tools | Chat with tool steps |
+`voltx build` runs a 3-phase build when SSR is detected:
 
-All non-blank templates include a `public/index.html` with a dark-theme Tailwind CSS UI that connects to the backend API routes.
+1. **Client build** — Vite builds `src/entry-client.tsx` → `dist/client/`
+2. **SSR build** — Vite builds `src/entry-server.tsx` → `dist/server/`
+3. **Server build** — tsup bundles `server.ts` → `dist/index.js`
+
+Falls back to a 2-phase build (client + server) if no `src/entry-server.tsx` exists.
+
+## Project Structure
+
+All templates generate a full-stack project:
+
+```
+my-app/
+├── api/                    # Backend API routes (file-based routing)
+│   ├── index.ts            # GET /api — health check
+│   ├── chat.ts             # POST /api/chat (chatbot/agent-app)
+│   └── agent.ts            # POST /api/agent (agent-app)
+├── src/                    # Frontend (React + Vite)
+│   ├── app.tsx             # Root component
+│   ├── layout.tsx          # Layout wrapper
+│   ├── globals.css         # Tailwind CSS v4
+│   ├── entry-client.tsx    # Client hydration
+│   ├── entry-server.tsx    # SSR rendering
+│   ├── components/         # React components
+│   ├── hooks/              # Custom hooks
+│   └── lib/                # Utilities (cn() if shadcn enabled)
+├── agents/                 # AI agents (agent-app)
+├── tools/                  # Agent tools (agent-app)
+├── public/                 # Static assets (favicon, robots.txt, manifest)
+├── server.ts               # Hono app entry
+├── vite.config.ts          # Vite + Tailwind + dev server
+├── components.json         # shadcn/ui config (if enabled)
+├── voltx.config.ts         # VoltX config
+└── tsconfig.json           # TypeScript (with @/* path alias)
+```
+
+## What's Included
+
+- **Tailwind CSS v4** — native Vite plugin, no PostCSS config needed
+- **Path aliases** — `@/*` maps to `src/*` in both TypeScript and Vite
+- **shadcn/ui** (optional) — `--shadcn` flag pre-configures `components.json`, `cn()` utility, and CSS variables
+- **React SSR** — streaming server-side rendering via `@voltx/server`
+- **Auto .env loading** — `@voltx/core` loads `.env` files automatically
 
 ## Programmatic Usage
 
@@ -75,6 +106,7 @@ await createProject({
   name: "my-app",
   template: "chatbot",
   auth: "jwt",
+  shadcn: true,
 });
 ```
 

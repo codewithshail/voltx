@@ -19,7 +19,7 @@ import { registerStaticFiles } from "./static.js";
  *
  * const server = createServer({
  *   port: 3000,
- *   routesDir: "src/routes",
+ *   routesDir: "api",
  *   cors: true,
  *   logger: true,
  * });
@@ -31,7 +31,7 @@ export function createServer(config: ServerConfig = {}): VoltxServer {
   const {
     port = Number(process.env.PORT) || 3000,
     hostname = "0.0.0.0",
-    routesDir = "src/routes",
+    routesDir = "api",
     staticDir = "public",
     cors = true,
     logger: enableLogger = process.env.NODE_ENV !== "production",

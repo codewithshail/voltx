@@ -23,7 +23,7 @@
     "typescript": "^5.7.0"
   },
   "dependencies": {
-    "@voltx/server": "^0.3.0"
+    "@voltx/server": "workspace:*"
   },
   "files": ["dist"],
   "license": "MIT",

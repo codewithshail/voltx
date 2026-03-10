@@ -7,6 +7,10 @@ import {
   type CorsConfig,
 } from "@voltx/server";
 
+// ─── Env ─────────────────────────────────────────────────────────────────────
+
+export { loadEnv, getPublicEnv } from "./env.js";
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface VoltxConfig {
@@ -29,7 +33,7 @@ export interface VoltxConfig {
 export interface ServerConfigOverrides {
   /** Hostname to bind to (default: "0.0.0.0") */
   hostname?: string;
-  /** Directory to scan for file-based routes (default: "src/routes") */
+  /** Directory to scan for file-based routes (default: "api") */
   routesDir?: string;
   /** Directory for static files (default: "public") */
   staticDir?: string;
@@ -125,7 +129,7 @@ export class VoltxApp {
     this.server = createServer({
       port: this.config.port,
       hostname: this.config.server?.hostname,
-      routesDir: this.config.server?.routesDir ?? "src/routes",
+      routesDir: this.config.server?.routesDir ?? "api",
       staticDir: this.config.server?.staticDir ?? "public",
       cors: this.config.server?.cors ?? true,
       logger: this.config.server?.logger,
@@ -146,6 +150,10 @@ export class VoltxApp {
 
   /** Initialize all plugins and boot the app */
   async start(): Promise<void> {
+    // Load env vars from .env files before anything else
+    const { loadEnv } = await import("./env.js");
+    loadEnv(process.env.NODE_ENV ?? "development");
+
     this.logger.info(`Starting ${this.config.name}...`);
 
     const ctx: VoltxContext = {
