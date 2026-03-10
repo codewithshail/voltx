@@ -13,6 +13,13 @@ export interface SSROptions {
   entryClient?: string;
   /** App title (default: "VoltX App") */
   title?: string;
+  /**
+   * Custom module loader for dev mode (when no explicit Vite instance is passed).
+   * This should be a function that calls `import()` from the caller's module context
+   * so that Vite's SSR pipeline can intercept and transform .tsx files.
+   * Example: `loadModule: (path) => import(path)`
+   */
+  loadModule?: (path: string) => Promise<Record<string, unknown>>;
 }
 
 /** Vite dev server shape — minimal interface to avoid hard dep on vite */
@@ -85,11 +92,17 @@ export function registerSSR(
         const ssrBundlePath = resolve(process.cwd(), "dist/server/entry-server.js");
         const mod = await import(ssrBundlePath);
         render = mod.render as (url: string) => Promise<ReadableStream>;
+      } else if (options.loadModule) {
+        // Development under @hono/vite-dev-server: use the caller-provided
+        // import function so the import() runs inside Vite's SSR pipeline
+        // (which can transform .tsx files). The loadModule callback must be
+        // defined in the user's server.ts (which Vite processes).
+        const mod = await options.loadModule(entryServer);
+        render = mod.render as (url: string) => Promise<ReadableStream>;
       } else {
-        // Development under @hono/vite-dev-server: use a bare specifier
-        // so Vite's SSR module loader intercepts the import and handles
-        // .tsx transform + HMR. Absolute paths bypass Vite and hit Node directly.
-        const mod = await import(/* @vite-ignore */ "/" + entryServer);
+        // Fallback: try direct import (works if tsx/ts-node is registered)
+        const absPath = resolve(process.cwd(), entryServer);
+        const mod = await import(/* @vite-ignore */ absPath);
         render = mod.render as (url: string) => Promise<ReadableStream>;
       }
 

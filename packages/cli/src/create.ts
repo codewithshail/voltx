@@ -394,6 +394,7 @@ registerSSR(app, null, {
   title: "${projectName}",
   entryServer: "src/entry-server.tsx",
   entryClient: "src/entry-client.tsx",
+  loadModule: (path) => import(/* @vite-ignore */ path),
 });
 
 export default app;
