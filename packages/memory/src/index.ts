@@ -63,4 +63,4 @@ export function createMemory(
 
 // ─── Version ─────────────────────────────────────────────────────────────────
 
-export const VERSION = "0.4.2";
+export const VERSION = "0.4.4";

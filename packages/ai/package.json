@@ -1,6 +1,6 @@
 {
   "name": "@voltx/ai",
-  "version": "0.4.2",
+  "version": "0.4.4",
   "description": "VoltX AI — Unified LLM provider abstraction with streaming, tool calling, and structured output",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -13,7 +13,9 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts --clean",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
@@ -26,7 +28,16 @@
     "tsup": "^8.0.0",
     "typescript": "^5.7.0"
   },
-  "keywords": ["voltx", "ai", "llm", "openai", "anthropic", "cerebras", "streaming", "tool-calling"],
+  "keywords": [
+    "voltx",
+    "ai",
+    "llm",
+    "openai",
+    "anthropic",
+    "cerebras",
+    "streaming",
+    "tool-calling"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",

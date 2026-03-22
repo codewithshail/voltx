@@ -92,19 +92,19 @@ function parseArgs(argv: string[]) {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const VOLTX_VERSIONS: Record<string, string> = {
-  "@voltx/core": "^0.4.2",
-  "@voltx/server": "^0.4.2",
-  "@voltx/cli": "^0.4.2",
-  "@voltx/ai": "^0.4.2",
-  "@voltx/agents": "^0.4.2",
-  "@voltx/memory": "^0.4.2",
-  "@voltx/db": "^0.4.2",
-  "@voltx/rag": "^0.4.2",
-  "@voltx/auth": "^0.4.2",
-  "@voltx/ui": "^0.4.2",
+  "@voltx/core": "^0.4.4",
+  "@voltx/server": "^0.4.4",
+  "@voltx/cli": "^0.4.4",
+  "@voltx/ai": "^0.4.4",
+  "@voltx/agents": "^0.4.4",
+  "@voltx/memory": "^0.4.4",
+  "@voltx/db": "^0.4.4",
+  "@voltx/rag": "^0.4.4",
+  "@voltx/auth": "^0.4.4",
+  "@voltx/ui": "^0.4.4",
 };
 
-function vv(pkg: string): string { return VOLTX_VERSIONS[pkg] ?? "^0.4.2"; }
+function vv(pkg: string): string { return VOLTX_VERSIONS[pkg] ?? "^0.4.4"; }
 
 const TEMPLATES: Record<string, { label: string; hint: string; deps: Record<string, string> }> = {
   blank: {
@@ -247,6 +247,7 @@ function scaffold(opts: ScaffoldOptions): void {
     deps["react"] = "^19.0.0";
     deps["react-dom"] = "^19.0.0";
     deps["tailwindcss"] = "^4.0.0";
+    deps["react-router"] = "^7.0.0";
     devDeps["vite"] = "^6.0.0";
     devDeps["@hono/vite-dev-server"] = "^0.19.0";
     devDeps["@vitejs/plugin-react"] = "^4.3.0";
@@ -300,6 +301,7 @@ function scaffold(opts: ScaffoldOptions): void {
   fs.mkdirSync(path.join(projectDir, "src", "components"), { recursive: true });
   fs.mkdirSync(path.join(projectDir, "src", "hooks"), { recursive: true });
   fs.mkdirSync(path.join(projectDir, "src", "lib"), { recursive: true });
+  fs.mkdirSync(path.join(projectDir, "src", "pages"), { recursive: true });
 
   // Public assets
   fs.writeFileSync(path.join(projectDir, "public", "favicon.svg"), generateFaviconSVG());
@@ -312,8 +314,8 @@ function scaffold(opts: ScaffoldOptions): void {
     generateServerEntry(projectName, template, enableRag)
   );
 
-  // src/app.tsx — Root React component
-  fs.writeFileSync(path.join(projectDir, "src", "app.tsx"), generateAppComponent(projectName, template, enableRag));
+  // src/pages/index.tsx — Home page
+  fs.writeFileSync(path.join(projectDir, "src", "pages", "index.tsx"), generateHomePage(projectName, template, enableRag));
 
   // src/layout.tsx — Root layout
   fs.writeFileSync(path.join(projectDir, "src", "layout.tsx"), generateLayoutComponent(projectName));
@@ -332,6 +334,9 @@ function scaffold(opts: ScaffoldOptions): void {
 
   // src/entry-server.tsx — SSR rendering entry
   fs.writeFileSync(path.join(projectDir, "src", "entry-server.tsx"), generateEntryServer());
+
+  // src/voltx-env.d.ts — Type declarations for virtual modules
+  fs.writeFileSync(path.join(projectDir, "src", "voltx-env.d.ts"), `/// <reference types="vite/client" />\n\ndeclare module "virtual:voltx-routes" {\n  import type { ComponentType } from "react";\n  export function VoltxRoutes(): JSX.Element;\n  export const routes: Array<{ path: string; Component: ComponentType }>;\n}\n`);
 
   // vite.config.ts
   fs.writeFileSync(path.join(projectDir, "vite.config.ts"), generateViteConfigFile("server.ts"));
@@ -1083,6 +1088,7 @@ function generateViteConfigFile(entry: string): string {
 import devServer from "@hono/vite-dev-server";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { voltxRouter } from "@voltx/server";
 
 export default defineConfig({
   resolve: {
@@ -1093,6 +1099,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    voltxRouter(),
     devServer({
       entry: "${entry}",
       exclude: [
@@ -1114,16 +1121,19 @@ export default defineConfig({
 function generateEntryClient(): string {
   return `import React from "react";
 import { hydrateRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router";
+import { VoltxRoutes } from "virtual:voltx-routes";
 import Layout from "./layout";
-import App from "./app";
 import "./globals.css";
 
 hydrateRoot(
   document.getElementById("root")!,
   <React.StrictMode>
-    <Layout>
-      <App />
-    </Layout>
+    <BrowserRouter>
+      <Layout>
+        <VoltxRoutes />
+      </Layout>
+    </BrowserRouter>
   </React.StrictMode>
 );
 `;
@@ -1132,15 +1142,18 @@ hydrateRoot(
 function generateEntryServer(): string {
   return `import React from "react";
 import { renderToReadableStream } from "react-dom/server";
+import { StaticRouter } from "react-router";
+import { VoltxRoutes } from "virtual:voltx-routes";
 import Layout from "./layout";
-import App from "./app";
 
-export async function render(_url: string): Promise<ReadableStream> {
+export async function render(url: string): Promise<ReadableStream> {
   const stream = await renderToReadableStream(
     <React.StrictMode>
-      <Layout>
-        <App />
-      </Layout>
+      <StaticRouter location={url}>
+        <Layout>
+          <VoltxRoutes />
+        </Layout>
+      </StaticRouter>
     </React.StrictMode>,
     {
       onError(error: unknown) {
@@ -1411,11 +1424,11 @@ function generateComponentsJson(): string {
   }, null, 2) + "\n";
 }
 
-function generateAppComponent(projectName: string, template: string, enableRag: boolean): string {
+function generateHomePage(projectName: string, template: string, enableRag: boolean): string {
   if (template === "blank") {
     return `import React from "react";
 
-export default function App() {
+export default function Home() {
   return (
     <div className="relative min-h-screen overflow-hidden">
       {/* Fullscreen background video */}
@@ -1509,6 +1522,7 @@ export default function App() {
 `;
   }
 
+  // Chat-based templates (chatbot, rag-app, agent-app)
   const apiEndpoint = template === "agent-app" ? "/api/agent" : "/api/chat";
   const isAgent = template === "agent-app";
   const isRag = template === "rag-app";
@@ -1538,7 +1552,7 @@ interface Message {
   content: string;
 }
 
-export default function App() {
+export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
