@@ -171,4 +171,4 @@ export function useAgent(options: UseAgentOptions): UseAgentReturn {
   return { run, isRunning, error };
 }
 
-export const VERSION = "0.3.0";
+export const VERSION = "0.4.2";

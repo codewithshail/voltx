@@ -13,15 +13,15 @@ export interface CreateProjectOptions {
 }
 
 const VV: Record<string, string> = {
-  "@voltx/core": "^0.3.2",
-  "@voltx/server": "^0.3.2",
-  "@voltx/cli": "^0.3.7",
-  "@voltx/ai": "^0.3.0",
-  "@voltx/agents": "^0.3.1",
-  "@voltx/memory": "^0.3.0",
-  "@voltx/db": "^0.3.0",
-  "@voltx/rag": "^0.3.1",
-  "@voltx/auth": "^0.3.0",
+  "@voltx/core": "^0.3.3",
+  "@voltx/server": "^0.3.7",
+  "@voltx/cli": "^0.3.9",
+  "@voltx/ai": "^0.3.1",
+  "@voltx/agents": "^0.3.2",
+  "@voltx/memory": "^0.3.1",
+  "@voltx/db": "^0.3.1",
+  "@voltx/rag": "^0.3.2",
+  "@voltx/auth": "^0.3.1",
 };
 
 function v(pkg: string): string { return VV[pkg] ?? "^0.3.0"; }
@@ -390,11 +390,14 @@ if (isProd) {
 }
 
 // ── SSR catch-all — renders React on the server ─────────────────────────
+// Note: Do NOT statically import entry-server.tsx here — Node.js cannot
+// handle .tsx files natively. In dev, the Vite instance injected by
+// @hono/vite-dev-server will load it via ssrLoadModule. In production,
+// the pre-built SSR bundle at dist/server/entry-server.js is loaded.
 registerSSR(app, null, {
   title: "${projectName}",
-  entryServer: "src/entry-server.tsx",
   entryClient: "src/entry-client.tsx",
-  loadModule: (path) => import(/* @vite-ignore */ path),
+  entryServer: "src/entry-server.tsx",
 });
 
 export default app;

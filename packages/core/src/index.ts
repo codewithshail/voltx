@@ -220,4 +220,4 @@ export type { Context, RouteHandler, RouteModule } from "@voltx/server";
 
 // ─── Version ─────────────────────────────────────────────────────────────────
 
-export const VERSION = "0.3.0";
+export const VERSION = "0.4.2";

@@ -92,19 +92,19 @@ function parseArgs(argv: string[]) {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const VOLTX_VERSIONS: Record<string, string> = {
-  "@voltx/core": "^0.3.2",
-  "@voltx/server": "^0.3.2",
-  "@voltx/cli": "^0.3.7",
-  "@voltx/ai": "^0.3.0",
-  "@voltx/agents": "^0.3.1",
-  "@voltx/memory": "^0.3.0",
-  "@voltx/db": "^0.3.0",
-  "@voltx/rag": "^0.3.1",
-  "@voltx/auth": "^0.3.0",
-  "@voltx/ui": "^0.3.0",
+  "@voltx/core": "^0.4.2",
+  "@voltx/server": "^0.4.2",
+  "@voltx/cli": "^0.4.2",
+  "@voltx/ai": "^0.4.2",
+  "@voltx/agents": "^0.4.2",
+  "@voltx/memory": "^0.4.2",
+  "@voltx/db": "^0.4.2",
+  "@voltx/rag": "^0.4.2",
+  "@voltx/auth": "^0.4.2",
+  "@voltx/ui": "^0.4.2",
 };
 
-function vv(pkg: string): string { return VOLTX_VERSIONS[pkg] ?? "^0.3.0"; }
+function vv(pkg: string): string { return VOLTX_VERSIONS[pkg] ?? "^0.4.2"; }
 
 const TEMPLATES: Record<string, { label: string; hint: string; deps: Record<string, string> }> = {
   blank: {
@@ -248,7 +248,7 @@ function scaffold(opts: ScaffoldOptions): void {
     deps["react-dom"] = "^19.0.0";
     deps["tailwindcss"] = "^4.0.0";
     devDeps["vite"] = "^6.0.0";
-    devDeps["@hono/vite-dev-server"] = "^0.7.0";
+    devDeps["@hono/vite-dev-server"] = "^0.19.0";
     devDeps["@vitejs/plugin-react"] = "^4.3.0";
     devDeps["@tailwindcss/vite"] = "^4.0.0";
     devDeps["@types/react"] = "^19.0.0";
@@ -270,7 +270,7 @@ function scaffold(opts: ScaffoldOptions): void {
     name: projectName,
     version: "0.1.0",
     private: true,
-    scripts: { dev: "npx voltx dev", build: "npx voltx build", start: "npx voltx start" },
+    scripts: { dev: "voltx dev", build: "voltx build", start: "voltx start" },
     dependencies: deps,
     devDependencies: devDeps,
   };
@@ -1054,11 +1054,15 @@ if (isProd) {
 }
 
 // ── SSR catch-all — renders React on the server ─────────────────────────
+// Note: Do NOT statically import entry-server.tsx here — Node.js cannot
+// handle .tsx files natively. In dev, the Vite instance injected by
+// @hono/vite-dev-server will load it via ssrLoadModule. In production,
+// the pre-built SSR bundle at dist/server/entry-server.js is loaded.
 registerSSR(app, null, {
   title: "${projectName}",
-  entryServer: "src/entry-server.tsx",
   entryClient: "src/entry-client.tsx",
-  loadModule: (path) => import(/* @vite-ignore */ path),
+  entryServer: "src/entry-server.tsx",
+  css: "src/globals.css",
 });
 
 // ── Export for @hono/vite-dev-server (dev mode) ──────────────────────────
@@ -1155,16 +1159,7 @@ function generateLayoutComponent(projectName: string): string {
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
-      <header className="border-b border-border px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">⚡</span>
-          <span className="font-semibold">${projectName}</span>
-        </div>
-        <a href="https://github.com/codewithshail/voltx" target="_blank" rel="noopener noreferrer" className="text-muted text-sm hover:text-foreground transition-colors">
-          Built with VoltX
-        </a>
-      </header>
-      <main>{children}</main>
+      {children}
     </div>
   );
 }
@@ -1247,70 +1242,139 @@ function generateGlobalCSS(useShadcn = false): string {
   --sidebar-ring: 0 0% 83%;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  border-color: var(--color-border);
-}
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border-color: var(--color-border);
+  }
 
-html,
-body {
-  height: 100%;
-  background: var(--color-background);
-  color: var(--color-foreground);
-  font-family: system-ui, -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
+  html,
+  body {
+    height: 100%;
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
 
-#root {
-  height: 100%;
+  #root {
+    height: 100%;
+  }
 }
 `;
   }
 
-  return `@import "tailwindcss";
+  return `@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500&display=swap');
+@import "tailwindcss";
 
 @theme {
-  --color-background: #0a0a0a;
-  --color-foreground: #ededed;
-  --color-muted: #888888;
-  --color-border: #222222;
-  --color-primary: #2563eb;
-  --color-accent: #a78bfa;
-  --font-sans: system-ui, -apple-system, sans-serif;
+  --color-background: hsl(201 100% 13%);
+  --color-foreground: hsl(0 0% 100%);
+  --color-muted-foreground: hsl(240 4% 66%);
+  --color-primary: hsl(0 0% 100%);
+  --color-primary-foreground: hsl(0 0% 4%);
+  --color-secondary: hsl(0 0% 10%);
+  --color-muted: hsl(0 0% 10%);
+  --color-accent: hsl(0 0% 10%);
+  --color-border: hsl(0 0% 18%);
+  --color-input: hsl(0 0% 18%);
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'Instrument Serif', serif;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@layer base {
+  :root {
+    --font-display: 'Instrument Serif', serif;
+    --font-body: 'Inter', sans-serif;
+    --background: 201 100% 13%;
+    --foreground: 0 0% 100%;
+    --muted-foreground: 240 4% 66%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 4%;
+    --secondary: 0 0% 10%;
+    --muted: 0 0% 10%;
+    --accent: 0 0% 10%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+  }
+
+  html,
+  body {
+    height: 100%;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #root {
+    height: 100%;
+  }
 }
 
-html,
-body {
-  height: 100%;
-  background: var(--color-background);
-  color: var(--color-foreground);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
+/* Liquid Glass Effect */
+@layer components {
+  .liquid-glass {
+    background: rgba(255, 255, 255, 0.01);
+    background-blend-mode: luminosity;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border: none;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .liquid-glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.4px;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.45) 0%,
+      rgba(255, 255, 255, 0.15) 20%,
+      rgba(255, 255, 255, 0) 40%,
+      rgba(255, 255, 255, 0) 60%,
+      rgba(255, 255, 255, 0.15) 80%,
+      rgba(255, 255, 255, 0.45) 100%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
 }
 
-#root {
-  height: 100%;
+/* Animations */
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+@layer utilities {
+  .animate-fade-rise {
+    animation: fade-rise 0.8s ease-out both;
+  }
 
-a:hover {
-  text-decoration: underline;
+  .animate-fade-rise-delay {
+    animation: fade-rise 0.8s ease-out 0.2s both;
+  }
+
+  .animate-fade-rise-delay-2 {
+    animation: fade-rise 0.8s ease-out 0.4s both;
+  }
 }
 `;
 }
@@ -1349,91 +1413,96 @@ function generateComponentsJson(): string {
 
 function generateAppComponent(projectName: string, template: string, enableRag: boolean): string {
   if (template === "blank") {
-    return `import React, { useState, useEffect } from "react";
+    return `import React from "react";
 
 export default function App() {
-  const [status, setStatus] = useState<string>("checking...");
-
-  useEffect(() => {
-    fetch("/api")
-      .then((res) => res.json())
-      .then((data) => setStatus(data.status || "ok"))
-      .catch(() => setStatus("error"));
-  }, []);
-
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-60px)] px-6 py-12">
-      <div className="text-center max-w-2xl w-full">
-        {/* Hero */}
-        <div className="relative mb-8">
-          <div className="absolute inset-0 blur-3xl opacity-20 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500 rounded-full" />
-          <div className="relative text-7xl mb-4">⚡</div>
+    <div className="relative min-h-screen overflow-hidden">
+      {/* Fullscreen background video */}
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover z-0"
+      >
+        <source
+          src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260314_131748_f2ca2a28-fed7-44c8-b9a9-bd9acdd5ec31.mp4"
+          type="video/mp4"
+        />
+      </video>
+
+      {/* Dark gradient overlay for text readability */}
+      <div className="absolute inset-0 z-0 bg-gradient-to-b from-black/60 via-black/30 to-black/70" />
+
+      {/* Navigation */}
+      <nav className="relative z-10 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto">
+        <div
+          className="text-3xl tracking-tight text-foreground"
+          style={{ fontFamily: "'Instrument Serif', serif" }}
+        >
+          VoltX<sup className="text-xs">⚡</sup>
         </div>
-        <h1 className="text-5xl font-bold tracking-tight mb-3 bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">
-          ${projectName}
+
+        <div className="flex items-center gap-6">
+          <a
+            href="https://github.com/codewithshail/voltx"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            GitHub
+          </a>
+          <a
+            href="https://voltx.dev"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="liquid-glass rounded-full px-6 py-2.5 text-sm text-foreground hover:scale-[1.03] transition-transform cursor-pointer"
+          >
+            Docs
+          </a>
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="relative z-10 flex flex-col items-center justify-center text-center px-6 pt-32 pb-40 py-[90px]">
+        <h1
+          className="text-5xl sm:text-7xl md:text-8xl leading-[0.95] tracking-[-2.46px] max-w-7xl font-normal animate-fade-rise drop-shadow-[0_2px_12px_rgba(0,0,0,0.7)]"
+          style={{ fontFamily: "'Instrument Serif', serif" }}
+        >
+          Build <em className="not-italic text-white/70">AI-powered</em> apps{" "}
+          <em className="not-italic text-white/70">at lightning speed.</em>
         </h1>
-        <p className="text-muted text-lg mb-10">The AI-first full-stack framework</p>
 
-        {/* Status cards */}
-        <div className="flex gap-4 justify-center mb-10">
-          <div className="px-6 py-4 rounded-xl bg-white/5 border border-border backdrop-blur-sm">
-            <div className="text-xs text-muted mb-1 uppercase tracking-wider">Server</div>
-            <div className={\`text-sm font-medium \${status === "ok" ? "text-emerald-400" : "text-red-400"}\`}>
-              <span className={\`inline-block w-2 h-2 rounded-full mr-2 \${status === "ok" ? "bg-emerald-400 animate-pulse" : "bg-red-400"}\`} />
-              {status}
-            </div>
-          </div>
-          <div className="px-6 py-4 rounded-xl bg-white/5 border border-border backdrop-blur-sm">
-            <div className="text-xs text-muted mb-1 uppercase tracking-wider">Frontend</div>
-            <div className="text-sm font-medium text-emerald-400">
-              <span className="inline-block w-2 h-2 rounded-full mr-2 bg-emerald-400 animate-pulse" />
-              React + Vite
-            </div>
-          </div>
-          <div className="px-6 py-4 rounded-xl bg-white/5 border border-border backdrop-blur-sm">
-            <div className="text-xs text-muted mb-1 uppercase tracking-wider">CSS</div>
-            <div className="text-sm font-medium text-sky-400">Tailwind v4</div>
-          </div>
-        </div>
+        <p className="text-white/75 text-base sm:text-lg max-w-2xl mt-8 leading-relaxed animate-fade-rise-delay drop-shadow-[0_1px_8px_rgba(0,0,0,0.8)]">
+          The full-stack AI framework for dreamers and builders.
+          React + Hono + AI — one command, zero config, infinite possibilities.
+        </p>
 
-        {/* Get started */}
-        <div className="bg-white/[0.03] border border-border rounded-2xl p-8 text-left backdrop-blur-sm">
-          <h2 className="text-sm font-medium text-muted mb-6 uppercase tracking-wider">Get started</h2>
-          <div className="space-y-4">
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 text-sm shrink-0">1</div>
-              <div>
-                <code className="text-purple-400 text-sm">src/app.tsx</code>
-                <p className="text-muted text-sm mt-1">Edit this file to build your UI</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 text-sm shrink-0">2</div>
-              <div>
-                <code className="text-blue-400 text-sm">api/</code>
-                <p className="text-muted text-sm mt-1">Add API routes here (file-based routing)</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-sm shrink-0">3</div>
-              <div>
-                <code className="text-emerald-400 text-sm">src/components/</code>
-                <p className="text-muted text-sm mt-1">Create React components with Tailwind CSS</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <a
+          href="https://github.com/codewithshail/voltx"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="liquid-glass rounded-full px-14 py-5 text-base text-foreground mt-12 hover:scale-[1.03] transition-transform cursor-pointer animate-fade-rise-delay-2"
+        >
+          Get Started
+        </a>
+      </section>
 
-        {/* Links */}
-        <div className="flex gap-6 justify-center mt-8">
-          <a href="https://github.com/codewithshail/voltx" target="_blank" rel="noopener noreferrer" className="text-sm text-muted hover:text-foreground transition-colors">
-            GitHub →
+      {/* Footer */}
+      <footer className="relative z-10 text-center pb-8">
+        <p className="text-sm text-white/75 drop-shadow-[0_1px_6px_rgba(0,0,0,0.8)]">
+          Made with ♥ by{" "}
+          <a
+            href="https://github.com/codewithshail"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground hover:text-muted-foreground transition-colors"
+          >
+            Promptly AI
           </a>
-          <a href="https://voltx.co.in" target="_blank" rel="noopener noreferrer" className="text-sm text-muted hover:text-foreground transition-colors">
-            Docs →
-          </a>
-        </div>
-      </div>
+        </p>
+      </footer>
     </div>
   );
 }

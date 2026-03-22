@@ -20,6 +20,23 @@ export interface SSROptions {
    * Example: `loadModule: (path) => import(path)`
    */
   loadModule?: (path: string) => Promise<Record<string, unknown>>;
+  /**
+   * Pre-loaded render function. When provided, skips all module loading
+   * and uses this function directly. Useful when the caller imports the
+   * entry-server module themselves (e.g. in Vite-processed server.ts).
+   */
+  render?: (url: string) => Promise<ReadableStream>;
+  /**
+   * CSS file path(s) to inject in dev mode `<head>`.
+   * In dev, Vite serves source CSS and transforms it on the fly, but the
+   * SSR HTML shell has no `<link>` tag — CSS only loads after client JS
+   * hydrates, causing a flash of unstyled content (FOUC).
+   *
+   * Pass a string (e.g. `"src/globals.css"`) or an array of paths.
+   * Each path is emitted as `<link rel="stylesheet" href="/path">`.
+   * Defaults to `["src/globals.css"]`.
+   */
+  css?: string | string[];
 }
 
 /** Vite dev server shape — minimal interface to avoid hard dep on vite */
@@ -83,8 +100,11 @@ export function registerSSR(
     try {
       let render: (url: string) => Promise<ReadableStream>;
 
-      if (vite) {
-        // Development with explicit Vite instance: load module through Vite (with HMR)
+      if (options.render) {
+        // Caller provided a render function directly — use it as-is
+        render = options.render;
+      } else if (vite) {
+        // Development with explicit Vite instance
         const mod = await vite.ssrLoadModule(entryServer);
         render = mod.render as (url: string) => Promise<ReadableStream>;
       } else if (process.env.NODE_ENV === "production") {
@@ -92,18 +112,57 @@ export function registerSSR(
         const ssrBundlePath = resolve(process.cwd(), "dist/server/entry-server.js");
         const mod = await import(ssrBundlePath);
         render = mod.render as (url: string) => Promise<ReadableStream>;
-      } else if (options.loadModule) {
-        // Development under @hono/vite-dev-server: use the caller-provided
-        // import function so the import() runs inside Vite's SSR pipeline
-        // (which can transform .tsx files). The loadModule callback must be
-        // defined in the user's server.ts (which Vite processes).
-        const mod = await options.loadModule(entryServer);
-        render = mod.render as (url: string) => Promise<ReadableStream>;
       } else {
-        // Fallback: try direct import (works if tsx/ts-node is registered)
-        const absPath = resolve(process.cwd(), entryServer);
-        const mod = await import(/* @vite-ignore */ absPath);
-        render = mod.render as (url: string) => Promise<ReadableStream>;
+        // Development under @hono/vite-dev-server: the Vite instance is
+        // injected into c.env by the plugin. Try multiple access patterns
+        // since different versions of the plugin expose it differently.
+        // Base env from the plugin: { incoming: req, outgoing: res }
+        const envRecord = c.env as Record<string, unknown> | undefined;
+
+        // Try to find the Vite dev server from the Node.js HTTP server
+        // The plugin sets env.incoming to the Node.js IncomingMessage
+        const incoming = envRecord?.incoming as { socket?: { server?: { _viteDevServer?: ViteDevServer } } } | undefined;
+        const viteFromSocket = incoming?.socket?.server?._viteDevServer;
+
+        // Also try direct env patterns from various plugin versions
+        const viteFromEnv =
+          (envRecord?.vite as ViteDevServer | undefined) ??
+          (envRecord?.VITE_DEV_SERVER as ViteDevServer | undefined) ??
+          viteFromSocket;
+
+        if (viteFromEnv?.ssrLoadModule) {
+          const mod = await viteFromEnv.ssrLoadModule(entryServer);
+          render = mod.render as (url: string) => Promise<ReadableStream>;
+        } else if (options.loadModule) {
+          const mod = await options.loadModule(entryServer);
+          render = mod.render as (url: string) => Promise<ReadableStream>;
+        } else {
+          // Under @hono/vite-dev-server, this module (server.ts) is loaded
+          // via Vite's ssrLoadModule, so dynamic import() is intercepted by
+          // Vite and can handle .tsx files. Use it as a direct fallback.
+          try {
+            const mod = await import(/* @vite-ignore */ entryServer);
+            render = mod.render as (url: string) => Promise<ReadableStream>;
+          } catch {
+            // Last resort: try to create a Vite instance for SSR transformation.
+            try {
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+              // @ts-ignore — vite is a peer/dev dependency, available at runtime in user projects
+              const { createServer: createViteServer } = await import("vite");
+              const devServer = await createViteServer({
+                server: { middlewareMode: true, hmr: false },
+                appType: "custom",
+              });
+              const mod = await devServer.ssrLoadModule(entryServer);
+              render = mod.render as (url: string) => Promise<ReadableStream>;
+            } catch {
+              throw new Error(
+                `[voltx] Cannot load "${entryServer}" — Node.js cannot import .tsx files directly. ` +
+                `Ensure @hono/vite-dev-server is configured or pass a loadModule/render option to registerSSR().`
+              );
+            }
+          }
+        }
       }
 
       const appStream = await render(url);
@@ -117,6 +176,14 @@ export function registerSSR(
       if (!isProd) {
         // Dev: Vite serves source files directly
         clientScript = `/${entryClient}`;
+
+        // Inject CSS <link> tags so styles load before JS hydration (no FOUC)
+        const cssPaths = options.css
+          ? (Array.isArray(options.css) ? options.css : [options.css])
+          : ["src/globals.css"];
+        cssLinks = cssPaths
+          .map((p) => `    <link rel="stylesheet" href="/${p}" />`)
+          .join("\n");
       } else {
         // Production: read Vite manifest for hashed filenames
         if (!manifest) {

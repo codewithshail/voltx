@@ -1,6 +1,6 @@
 {
   "name": "@voltx/server",
-  "version": "0.3.3",
+  "version": "0.4.3",
   "description": "VoltX Server — Hono-based HTTP server with file-based routing, SSE streaming, and static file serving",
   "type": "module",
   "main": "./dist/index.cjs",

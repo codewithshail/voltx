@@ -19,3 +19,6 @@ PHASE3-PLAN.md
 
 # Templates (dead weight — scaffolding is in packages/create-voltx-app)
 templates/
+
+# Test projects
+test-voltx-check/

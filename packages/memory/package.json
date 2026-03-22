@@ -1,6 +1,6 @@
 {
   "name": "@voltx/memory",
-  "version": "0.3.0",
+  "version": "0.4.2",
   "description": "VoltX memory — short-term and long-term memory for agents and conversations",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

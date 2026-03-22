@@ -1,6 +1,6 @@
 {
   "name": "@voltx/rag",
-  "version": "0.3.1",
+  "version": "0.4.2",
   "description": "VoltX RAG pipeline primitives — document loading, chunking, embedding, retrieval",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -19,8 +19,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@voltx/ai": "^0.3.0",
-    "@voltx/db": "^0.3.0"
+    "@voltx/ai": "^0.4.2",
+    "@voltx/db": "^0.4.2"
   },
   "devDependencies": {
     "tsup": "^8.0.0",

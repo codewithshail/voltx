@@ -1,6 +1,6 @@
 {
   "name": "@voltx/agents",
-  "version": "0.3.1",
+  "version": "0.4.2",
   "description": "VoltX agent loop — tool use, planning, multi-step execution",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -19,8 +19,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@voltx/ai": "^0.3.0",
-    "@voltx/memory": "^0.3.0"
+    "@voltx/ai": "^0.4.2",
+    "@voltx/memory": "^0.4.2"
   },
   "devDependencies": {
     "tsup": "^8.0.0",

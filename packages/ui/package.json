@@ -1,6 +1,6 @@
 {
   "name": "@voltx/ui",
-  "version": "0.3.0",
+  "version": "0.4.2",
   "description": "VoltX React hooks — useRAG, useAgent, useChat, useCompletion",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
