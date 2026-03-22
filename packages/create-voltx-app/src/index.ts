@@ -92,19 +92,19 @@ function parseArgs(argv: string[]) {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const VOLTX_VERSIONS: Record<string, string> = {
-  "@voltx/core": "^0.4.4",
-  "@voltx/server": "^0.4.4",
-  "@voltx/cli": "^0.4.4",
-  "@voltx/ai": "^0.4.4",
-  "@voltx/agents": "^0.4.4",
-  "@voltx/memory": "^0.4.4",
-  "@voltx/db": "^0.4.4",
-  "@voltx/rag": "^0.4.4",
-  "@voltx/auth": "^0.4.4",
-  "@voltx/ui": "^0.4.4",
+  "@voltx/core": "^0.4.5",
+  "@voltx/server": "^0.4.5",
+  "@voltx/cli": "^0.4.5",
+  "@voltx/ai": "^0.4.5",
+  "@voltx/agents": "^0.4.5",
+  "@voltx/memory": "^0.4.5",
+  "@voltx/db": "^0.4.5",
+  "@voltx/rag": "^0.4.5",
+  "@voltx/auth": "^0.4.5",
+  "@voltx/ui": "^0.4.5",
 };
 
-function vv(pkg: string): string { return VOLTX_VERSIONS[pkg] ?? "^0.4.4"; }
+function vv(pkg: string): string { return VOLTX_VERSIONS[pkg] ?? "^0.4.5"; }
 
 const TEMPLATES: Record<string, { label: string; hint: string; deps: Record<string, string> }> = {
   blank: {
@@ -336,7 +336,7 @@ function scaffold(opts: ScaffoldOptions): void {
   fs.writeFileSync(path.join(projectDir, "src", "entry-server.tsx"), generateEntryServer());
 
   // src/voltx-env.d.ts — Type declarations for virtual modules
-  fs.writeFileSync(path.join(projectDir, "src", "voltx-env.d.ts"), `/// <reference types="vite/client" />\n\ndeclare module "virtual:voltx-routes" {\n  import type { ComponentType } from "react";\n  export function VoltxRoutes(): JSX.Element;\n  export const routes: Array<{ path: string; Component: ComponentType }>;\n}\n`);
+  fs.writeFileSync(path.join(projectDir, "src", "voltx-env.d.ts"), `/// <reference types="vite/client" />\n\ndeclare module "voltx/router" {\n  import type { ComponentType } from "react";\n  export function VoltxRoutes(): JSX.Element;\n  export const routes: Array<{ path: string; Component: ComponentType }>;\n\n  // Navigation primitives (re-exported from react-router)\n  export { Link, NavLink } from "react-router";\n  export { useNavigate, useParams, useLocation, useSearchParams } from "react-router";\n}\n`);
 
   // vite.config.ts
   fs.writeFileSync(path.join(projectDir, "vite.config.ts"), generateViteConfigFile("server.ts"));
@@ -1122,7 +1122,7 @@ function generateEntryClient(): string {
   return `import React from "react";
 import { hydrateRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
-import { VoltxRoutes } from "virtual:voltx-routes";
+import { VoltxRoutes } from "voltx/router";
 import Layout from "./layout";
 import "./globals.css";
 
@@ -1143,7 +1143,7 @@ function generateEntryServer(): string {
   return `import React from "react";
 import { renderToReadableStream } from "react-dom/server";
 import { StaticRouter } from "react-router";
-import { VoltxRoutes } from "virtual:voltx-routes";
+import { VoltxRoutes } from "voltx/router";
 import Layout from "./layout";
 
 export async function render(url: string): Promise<ReadableStream> {

@@ -1,7 +1,7 @@
 // @voltx/server — Vite Plugin for File-Based Routing
 //
 // Provides:
-// 1. Virtual module "virtual:voltx-routes" — auto-discovers src/pages/*.tsx
+// 1. Virtual module "voltx/router" — auto-discovers src/pages/*.tsx
 // 2. Auto-configures ssr.noExternal for react-router
 // 3. HMR support — routes update when pages are added/removed
 
@@ -18,6 +18,9 @@ export interface VoltxRouterOptions {
  * Scans `src/pages/` and generates a virtual module that maps
  * file paths to routes — just like Next.js.
  *
+ * Usage:
+ *   import { Link, VoltxRoutes, useNavigate } from "voltx/router";
+ *
  * Convention:
  *   src/pages/index.tsx       → /
  *   src/pages/about.tsx       → /about
@@ -26,8 +29,12 @@ export interface VoltxRouterOptions {
  */
 export function voltxRouter(options: VoltxRouterOptions = {}): Plugin {
   const pagesDir = options.pagesDir ?? "src/pages";
-  const virtualModuleId = "virtual:voltx-routes";
-  const resolvedVirtualModuleId = "\0" + virtualModuleId;
+
+  // "voltx/router" is the clean public import path
+  // "virtual:voltx-routes" kept as legacy alias
+  const PUBLIC_ID = "voltx/router";
+  const LEGACY_ID = "virtual:voltx-routes";
+  const RESOLVED_ID = "\0voltx/router";
 
   return {
     name: "voltx-router",
@@ -36,23 +43,19 @@ export function voltxRouter(options: VoltxRouterOptions = {}): Plugin {
     config() {
       return {
         ssr: {
-          // react-router ships CJS — force Vite to bundle its .mjs for SSR
           noExternal: ["react-router"],
         },
       };
     },
 
     resolveId(id: string) {
-      if (id === virtualModuleId) {
-        return resolvedVirtualModuleId;
+      if (id === PUBLIC_ID || id === LEGACY_ID) {
+        return RESOLVED_ID;
       }
     },
 
     load(id: string) {
-      if (id === resolvedVirtualModuleId) {
-        // Generate the routes module using import.meta.glob
-        // Uses React.createElement instead of JSX to avoid needing a JSX transform
-        // on the virtual module (Vite treats virtual modules as plain JS)
+      if (id === RESOLVED_ID) {
         return `
 import { createElement } from "react";
 import { Routes, Route } from "react-router";
@@ -94,14 +97,16 @@ export function VoltxRoutes() {
 }
 
 export { routes };
+
+// Navigation primitives — single import source
+export { Link, NavLink, useNavigate, useParams, useLocation, useSearchParams } from "react-router";
 `;
       }
     },
 
-    // HMR: when a file in src/pages/ is added/removed, invalidate the virtual module
     handleHotUpdate({ file, server }: { file: string; server: { moduleGraph: { getModuleById(id: string): unknown; invalidateModule(mod: unknown): void }; ws: { send(msg: { type: string }): void } } }) {
       if (file.includes(pagesDir.replace(/\//g, "/"))) {
-        const mod = server.moduleGraph.getModuleById(resolvedVirtualModuleId);
+        const mod = server.moduleGraph.getModuleById(RESOLVED_ID);
         if (mod) {
           server.moduleGraph.invalidateModule(mod);
           server.ws.send({ type: "full-reload" });

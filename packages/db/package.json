@@ -1,6 +1,6 @@
 {
   "name": "@voltx/db",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "VoltX database — Drizzle ORM + Neon Postgres + Pinecone + pgvector adapters",
   "type": "module",
   "main": "./dist/index.cjs",
