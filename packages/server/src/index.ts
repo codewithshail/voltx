@@ -48,6 +48,11 @@ export type { ViteDevOptions } from "./vite.js";
 export { voltxRouter } from "./vite-plugin.js";
 export type { VoltxRouterOptions } from "./vite-plugin.js";
 
+// ─── Vite Plugin (File-Based API Routes) ────────────────────────────────────
+
+export { voltxAPI } from "./vite-api-plugin.js";
+export type { VoltxAPIOptions } from "./vite-api-plugin.js";
+
 // ─── SSR (Server-Side Rendering) ─────────────────────────────────────────────
 
 export { registerSSR } from "./ssr.js";
@@ -55,4 +60,4 @@ export type { SSROptions } from "./ssr.js";
 
 // ─── Version ─────────────────────────────────────────────────────────────────
 
-export const VERSION = "0.4.5";
+export const VERSION = "0.4.6";

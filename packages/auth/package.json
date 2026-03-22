@@ -1,6 +1,6 @@
 {
   "name": "@voltx/auth",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "VoltX auth — Better Auth, JWT, API keys with Hono middleware",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

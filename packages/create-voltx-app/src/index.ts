@@ -92,19 +92,19 @@ function parseArgs(argv: string[]) {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const VOLTX_VERSIONS: Record<string, string> = {
-  "@voltx/core": "^0.4.5",
-  "@voltx/server": "^0.4.5",
-  "@voltx/cli": "^0.4.5",
-  "@voltx/ai": "^0.4.5",
-  "@voltx/agents": "^0.4.5",
-  "@voltx/memory": "^0.4.5",
-  "@voltx/db": "^0.4.5",
-  "@voltx/rag": "^0.4.5",
-  "@voltx/auth": "^0.4.5",
-  "@voltx/ui": "^0.4.5",
+  "@voltx/core": "^0.4.6",
+  "@voltx/server": "^0.4.6",
+  "@voltx/cli": "^0.4.6",
+  "@voltx/ai": "^0.4.6",
+  "@voltx/agents": "^0.4.6",
+  "@voltx/memory": "^0.4.6",
+  "@voltx/db": "^0.4.6",
+  "@voltx/rag": "^0.4.6",
+  "@voltx/auth": "^0.4.6",
+  "@voltx/ui": "^0.4.6",
 };
 
-function vv(pkg: string): string { return VOLTX_VERSIONS[pkg] ?? "^0.4.5"; }
+function vv(pkg: string): string { return VOLTX_VERSIONS[pkg] ?? "^0.4.6"; }
 
 const TEMPLATES: Record<string, { label: string; hint: string; deps: Record<string, string> }> = {
   blank: {
@@ -336,7 +336,7 @@ function scaffold(opts: ScaffoldOptions): void {
   fs.writeFileSync(path.join(projectDir, "src", "entry-server.tsx"), generateEntryServer());
 
   // src/voltx-env.d.ts — Type declarations for virtual modules
-  fs.writeFileSync(path.join(projectDir, "src", "voltx-env.d.ts"), `/// <reference types="vite/client" />\n\ndeclare module "voltx/router" {\n  import type { ComponentType } from "react";\n  export function VoltxRoutes(): JSX.Element;\n  export const routes: Array<{ path: string; Component: ComponentType }>;\n\n  // Navigation primitives (re-exported from react-router)\n  export { Link, NavLink } from "react-router";\n  export { useNavigate, useParams, useLocation, useSearchParams } from "react-router";\n}\n`);
+  fs.writeFileSync(path.join(projectDir, "src", "voltx-env.d.ts"), `/// <reference types="vite/client" />\n\ndeclare module "voltx/router" {\n  import type { ComponentType } from "react";\n  export function VoltxRoutes(): JSX.Element;\n  export const routes: Array<{ path: string; Component: ComponentType }>;\n\n  // Navigation primitives (re-exported from react-router)\n  export { Link, NavLink } from "react-router";\n  export { useNavigate, useParams, useLocation, useSearchParams } from "react-router";\n}\n\ndeclare module "voltx/api" {\n  import type { Hono } from "hono";\n  export function registerRoutes(app: Hono): Array<{ method: string; path: string }>;\n}\n`);
 
   // vite.config.ts
   fs.writeFileSync(path.join(projectDir, "vite.config.ts"), generateViteConfigFile("server.ts"));
@@ -1002,44 +1002,13 @@ function tryGitInit(projectDir: string): boolean {
 
 // ─── Vite + Frontend generators ──────────────────────────────────────────────
 
-function generateServerEntry(projectName: string, template: string, enableRag: boolean): string {
-  // Build route imports based on template
-  const imports: string[] = [];
-  const mounts: string[] = [];
-
-  // Health check route (all templates)
-  imports.push('import { GET as healthGET } from "./api/index";');
-  mounts.push('app.get("/api", healthGET);');
-
-  // Chat route (chatbot + agent-app)
-  if (template === "chatbot" || template === "agent-app") {
-    imports.push('import { POST as chatPOST } from "./api/chat";');
-    mounts.push('app.post("/api/chat", chatPOST);');
-  }
-
-  // Agent route
-  if (template === "agent-app") {
-    imports.push('import { POST as agentPOST } from "./api/agent";');
-    mounts.push('app.post("/api/agent", agentPOST);');
-  }
-
-  // RAG routes
-  if (template === "rag-app") {
-    imports.push('import { POST as ragQueryPOST } from "./api/rag/query";');
-    imports.push('import { POST as ragIngestPOST } from "./api/rag/ingest";');
-    mounts.push('app.post("/api/rag/query", ragQueryPOST);');
-    mounts.push('app.post("/api/rag/ingest", ragIngestPOST);');
-  } else if (enableRag) {
-    imports.push('import { POST as ragIngestPOST } from "./api/rag/ingest";');
-    mounts.push('app.post("/api/rag/ingest", ragIngestPOST);');
-  }
-
+function generateServerEntry(projectName: string, _template: string, _enableRag: boolean): string {
   return `import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { registerSSR } from "@voltx/server";
 import { loadEnv } from "@voltx/core";
-${imports.join("\n")}
+import { registerRoutes } from "voltx/api";
 
 // Load environment variables
 loadEnv(process.env.NODE_ENV ?? "development");
@@ -1047,8 +1016,10 @@ loadEnv(process.env.NODE_ENV ?? "development");
 const isProd = process.env.NODE_ENV === "production";
 const app = new Hono();
 
-// ── API Routes ───────────────────────────────────────────────────────────
-${mounts.join("\n")}
+// ── API Routes (auto-discovered from api/ directory) ─────────────────────
+// Just drop files in api/ and export GET, POST, PUT, DELETE handlers.
+// No manual imports needed — works like Next.js API routes.
+registerRoutes(app);
 
 // ── Static assets (production) ───────────────────────────────────────────
 if (isProd) {
@@ -1059,10 +1030,6 @@ if (isProd) {
 }
 
 // ── SSR catch-all — renders React on the server ─────────────────────────
-// Note: Do NOT statically import entry-server.tsx here — Node.js cannot
-// handle .tsx files natively. In dev, the Vite instance injected by
-// @hono/vite-dev-server will load it via ssrLoadModule. In production,
-// the pre-built SSR bundle at dist/server/entry-server.js is loaded.
 registerSSR(app, null, {
   title: "${projectName}",
   entryClient: "src/entry-client.tsx",
@@ -1088,7 +1055,7 @@ function generateViteConfigFile(entry: string): string {
 import devServer from "@hono/vite-dev-server";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { voltxRouter } from "@voltx/server";
+import { voltxRouter, voltxAPI } from "@voltx/server";
 
 export default defineConfig({
   resolve: {
@@ -1100,6 +1067,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     voltxRouter(),
+    voltxAPI(),
     devServer({
       entry: "${entry}",
       exclude: [

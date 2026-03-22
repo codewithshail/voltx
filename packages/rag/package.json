@@ -1,6 +1,6 @@
 {
   "name": "@voltx/rag",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "VoltX RAG pipeline primitives — document loading, chunking, embedding, retrieval",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

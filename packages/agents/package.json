@@ -1,6 +1,6 @@
 {
   "name": "@voltx/agents",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "VoltX agent loop — tool use, planning, multi-step execution",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
