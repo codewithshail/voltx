@@ -62,20 +62,22 @@ Falls back to a 2-phase build (client + server) if no `src/entry-server.tsx` exi
 
 ## Project Structure
 
-All templates generate a full-stack project:
+All templates generate a full-stack project with file-based routing:
 
 ```
 my-app/
-├── api/                    # Backend API routes (file-based routing)
+├── api/                    # Backend API routes (auto-discovered via voltx/api)
 │   ├── index.ts            # GET /api — health check
 │   ├── chat.ts             # POST /api/chat (chatbot/agent-app)
 │   └── agent.ts            # POST /api/agent (agent-app)
-├── src/                    # Frontend (React + Vite)
-│   ├── app.tsx             # Root component
-│   ├── layout.tsx          # Layout wrapper
+├── src/
+│   ├── pages/              # Frontend pages (auto-discovered via voltx/router)
+│   │   └── index.tsx       # / — home page
+│   ├── layout.tsx          # Root layout wrapper
 │   ├── globals.css         # Tailwind CSS v4
 │   ├── entry-client.tsx    # Client hydration
 │   ├── entry-server.tsx    # SSR rendering
+│   ├── voltx-env.d.ts     # Type declarations for voltx/router & voltx/api
 │   ├── components/         # React components
 │   ├── hooks/              # Custom hooks
 │   └── lib/                # Utilities (cn() if shadcn enabled)
@@ -83,7 +85,7 @@ my-app/
 ├── tools/                  # Agent tools (agent-app)
 ├── public/                 # Static assets (favicon, robots.txt, manifest)
 ├── server.ts               # Hono app entry
-├── vite.config.ts          # Vite + Tailwind + dev server
+├── vite.config.ts          # Vite + Tailwind + voltxRouter() + voltxAPI()
 ├── components.json         # shadcn/ui config (if enabled)
 ├── voltx.config.ts         # VoltX config
 └── tsconfig.json           # TypeScript (with @/* path alias)
@@ -91,6 +93,9 @@ my-app/
 
 ## What's Included
 
+- **File-based page routing** — `src/pages/*.tsx` auto-discovered via `voltxRouter()` Vite plugin
+- **File-based API routing** — `api/**/*.ts` auto-discovered via `voltxAPI()` Vite plugin
+- **Navigation** — `Link`, `NavLink`, `useNavigate`, `useParams` from `voltx/router`
 - **Tailwind CSS v4** — native Vite plugin, no PostCSS config needed
 - **Path aliases** — `@/*` maps to `src/*` in both TypeScript and Vite
 - **shadcn/ui** (optional) — `--shadcn` flag pre-configures `components.json`, `cn()` utility, and CSS variables

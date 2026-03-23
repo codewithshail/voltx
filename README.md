@@ -21,7 +21,7 @@
 
 ## What is VoltX?
 
-VoltX is a full-stack TypeScript framework purpose-built for AI applications. Instead of wiring together 10 different packages, you get one framework where everything works out of the box — LLM providers, streaming, agents, RAG pipelines, database, auth, conversation memory, React SSR, and Tailwind CSS.
+VoltX is a full-stack TypeScript framework purpose-built for AI applications. Instead of wiring together 10 different packages, you get one framework where everything works out of the box — LLM providers, streaming, agents, RAG pipelines, database, auth, conversation memory, React SSR, file-based routing, and Tailwind CSS.
 
 One command. Full-stack. Everything runs.
 
@@ -33,7 +33,7 @@ npm run dev
 ```
 
 ```ts
-// api/chat.ts — streaming chat endpoint
+// api/chat.ts — streaming chat endpoint (auto-discovered)
 import type { Context } from "@voltx/server";
 import { streamText } from "@voltx/ai";
 
@@ -57,7 +57,9 @@ Building AI apps today means stitching together a dozen libraries. VoltX replace
 |---------------|---------------|------------|
 | LLM calls | Vercel AI SDK / LangChain | `@voltx/ai` — built in |
 | HTTP server | Express / Fastify / Hono | `@voltx/server` — built in |
-| API routing | Manual setup | File-based routing (automatic) |
+| API routing | Manual setup | File-based `api/` routing (automatic via `voltx/api`) |
+| Page routing | React Router manual config | File-based `src/pages/` routing (automatic via `voltx/router`) |
+| Navigation | Install react-router, configure | `import { Link } from "voltx/router"` — built in |
 | React SSR | Next.js / Remix | `@voltx/server` — streaming SSR |
 | Frontend | Separate Vite project | Integrated — one `npm run dev` |
 | CSS | Manual Tailwind setup | Tailwind CSS v4 — pre-configured |
@@ -115,7 +117,7 @@ npm run dev
 | `chatbot` | Streaming chat + memory, optional RAG | Chat interface with streaming bubbles |
 | `rag-app` | Document Q&A with embeddings + vector search | Split view: ingest panel + query chat |
 | `agent-app` | AI agent with tools + memory, optional RAG | Chat with tool step visualization |
-| `blank` | Minimal server with file-based routing | React welcome page |
+| `blank` | Minimal server with file-based routing | Cinematic hero page with video background |
 
 Every template is full-stack: React frontend with streaming SSR + Hono backend. One `npm run dev` starts everything — like Next.js, but for AI apps.
 
@@ -125,16 +127,23 @@ Every template is full-stack: React frontend with streaming SSR + Hono backend. 
 
 ```
 my-app/
-├── api/                    # Backend API routes (file-based routing)
+├── api/                    # Backend API routes (auto-discovered via voltx/api)
 │   ├── index.ts            # GET /api — health check
 │   ├── chat.ts             # POST /api/chat
-│   └── agent.ts            # POST /api/agent
-├── src/                    # Frontend (React + Vite)
-│   ├── app.tsx             # Root component
-│   ├── layout.tsx          # Layout wrapper
+│   └── rag/
+│       └── ingest.ts       # POST /api/rag/ingest
+├── src/
+│   ├── pages/              # Frontend pages (auto-discovered via voltx/router)
+│   │   ├── index.tsx       # / — home page
+│   │   ├── about.tsx       # /about
+│   │   └── blog/
+│   │       ├── index.tsx   # /blog
+│   │       └── [slug].tsx  # /blog/:slug (dynamic route)
+│   ├── layout.tsx          # Root layout wrapper
 │   ├── globals.css         # Tailwind CSS v4 + theme
 │   ├── entry-client.tsx    # Client hydration
 │   ├── entry-server.tsx    # SSR rendering
+│   ├── voltx-env.d.ts     # Type declarations for voltx/router & voltx/api
 │   ├── components/         # React components
 │   ├── hooks/              # Custom hooks
 │   └── lib/                # Utilities
@@ -142,16 +151,16 @@ my-app/
 ├── tools/                  # Agent tools (agent-app)
 ├── public/                 # Static assets (favicon, robots.txt, manifest)
 ├── server.ts               # Hono app entry
-├── vite.config.ts          # Vite + Tailwind + dev server
+├── vite.config.ts          # Vite + Tailwind + voltxRouter() + voltxAPI()
 ├── components.json         # shadcn/ui config (if enabled)
 ├── voltx.config.ts         # VoltX config
 └── tsconfig.json           # TypeScript (with @/* path alias)
 ```
 
 **Where to add things:**
-- New API route → create a file in `api/` (e.g. `api/users.ts`)
+- New page → create a file in `src/pages/` (e.g. `src/pages/about.tsx`) — auto-discovered
+- New API route → create a file in `api/` (e.g. `api/users.ts`) — auto-discovered
 - New React component → `src/components/`
-- New page/view → edit `src/app.tsx` or add routing
 - New agent tool → `tools/`
 - New agent → `agents/`
 - Static files → `public/`
@@ -159,6 +168,64 @@ my-app/
 ---
 
 ## Built-in Features
+
+### Next.js-Style File-Based Page Routing (`voltx/router`)
+
+Drop React components in `src/pages/` and they become routes. No manual configuration.
+
+```
+src/pages/index.tsx         → /
+src/pages/about.tsx         → /about
+src/pages/blog/index.tsx    → /blog
+src/pages/blog/[slug].tsx   → /blog/:slug (dynamic)
+```
+
+```tsx
+// src/pages/about.tsx — automatically becomes /about
+import { Link } from "voltx/router";
+
+export default function About() {
+  return (
+    <div>
+      <h1>About Us</h1>
+      <Link to="/">Back to Home</Link>
+    </div>
+  );
+}
+```
+
+Navigation primitives are re-exported from `voltx/router` — no need to install react-router separately:
+
+```tsx
+import { Link, NavLink, useNavigate, useParams, useLocation, useSearchParams } from "voltx/router";
+```
+
+### Next.js-Style File-Based API Routing (`voltx/api`)
+
+Drop files in `api/` and they become API endpoints. No manual registration needed.
+
+```
+api/index.ts              → GET /api
+api/users.ts              → GET/POST /api/users
+api/users/[id].ts         → GET/PUT/DELETE /api/users/:id
+api/[...slug].ts          → /api/* (catch-all)
+```
+
+```ts
+// api/users.ts — auto-discovered, exports HTTP method handlers
+import type { Context } from "@voltx/server";
+
+export function GET(c: Context) {
+  return c.json([{ id: 1, name: "Alice" }]);
+}
+
+export async function POST(c: Context) {
+  const body = await c.req.json();
+  return c.json({ created: true, ...body }, 201);
+}
+```
+
+Routes are sorted automatically: static first, dynamic (`:param`) second, catch-all (`*`) last. HMR support means new API files are picked up instantly in dev mode.
 
 ### Tailwind CSS v4
 
@@ -267,30 +334,6 @@ const { embedding } = await embed({
 
 ---
 
-### File-Based Routing (`@voltx/server`)
-
-Drop files in `api/` and they become API endpoints. No manual registration.
-
-```
-api/index.ts              → GET /api
-api/chat.ts               → POST /api/chat
-api/users/[id].ts         → GET /api/users/:id
-api/[...slug].ts          → /api/* (catch-all)
-```
-
-```ts
-import type { Context } from "@voltx/server";
-
-export function GET(c: Context) {
-  const id = c.req.param("id");
-  return c.json({ id, name: "User" });
-}
-```
-
-Built on [Hono](https://hono.dev) — CORS, logging, error handling, and static file serving included.
-
----
-
 ### AI Agents (`@voltx/agents`)
 
 Autonomous agents that reason, call tools, and loop until they have an answer.
@@ -309,7 +352,7 @@ export const assistant = createAgent({
 ```
 
 ```ts
-// api/agent.ts
+// api/agent.ts — auto-discovered via voltx/api
 import type { Context } from "@voltx/server";
 import { assistant } from "../agents/assistant";
 
@@ -401,6 +444,27 @@ voltx generate tool search
 
 ---
 
+### Vite Plugins
+
+VoltX provides two Vite plugins that power the file-based routing:
+
+```ts
+// vite.config.ts — generated automatically by create-voltx-app
+import { voltxRouter, voltxAPI } from "@voltx/server";
+
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss(),
+    voltxRouter(),   // Auto-discovers src/pages/*.tsx → voltx/router
+    voltxAPI(),      // Auto-discovers api/**/*.ts → voltx/api
+    devServer({ entry: "server.ts" }),
+  ],
+});
+```
+
+---
+
 ### Configuration
 
 ```ts
@@ -430,7 +494,7 @@ export default defineConfig({
 |---------|---------|-------------|
 | [`@voltx/core`](./packages/core) | [![npm](https://img.shields.io/npm/v/@voltx/core?color=blue)](https://npmjs.com/package/@voltx/core) | Framework engine — config, env loading, app lifecycle |
 | [`@voltx/ai`](./packages/ai) | [![npm](https://img.shields.io/npm/v/@voltx/ai?color=blue)](https://npmjs.com/package/@voltx/ai) | Unified LLM — 6 providers, streaming, tool calling, embeddings |
-| [`@voltx/server`](./packages/server) | [![npm](https://img.shields.io/npm/v/@voltx/server?color=blue)](https://npmjs.com/package/@voltx/server) | Hono HTTP server with file-based routing + React SSR |
+| [`@voltx/server`](./packages/server) | [![npm](https://img.shields.io/npm/v/@voltx/server?color=blue)](https://npmjs.com/package/@voltx/server) | Hono HTTP server + React SSR + Vite plugins (`voltxRouter`, `voltxAPI`) |
 | [`@voltx/db`](./packages/db) | [![npm](https://img.shields.io/npm/v/@voltx/db?color=blue)](https://npmjs.com/package/@voltx/db) | Drizzle ORM + Neon Postgres + Pinecone + pgvector |
 | [`@voltx/agents`](./packages/agents) | [![npm](https://img.shields.io/npm/v/@voltx/agents?color=blue)](https://npmjs.com/package/@voltx/agents) | ReAct agent loop with tool calling |
 | [`@voltx/rag`](./packages/rag) | [![npm](https://img.shields.io/npm/v/@voltx/rag?color=blue)](https://npmjs.com/package/@voltx/rag) | RAG pipeline — chunking, embeddings, vector retrieval |
@@ -484,7 +548,9 @@ This is a pnpm + Turborepo monorepo with 11 packages. All packages build to CJS 
 - [x] Phase 1 — Core framework, server, config, plugin system
 - [x] Phase 2 — AI providers, agents, RAG, memory, auth, DB, CLI, scaffolder, tools, frontend UI
 - [x] Phase 3 (Steps 1–4) — .env auto-loading, Vite dev server, full-stack restructure, React SSR, Tailwind CSS v4, shadcn/ui, path aliases, public assets
-- [ ] Phase 3 (Steps 5–7) — Streaming UI components, background jobs, deployment helpers
+- [x] Phase 3 (Step 5) — File-based page routing (`voltx/router`), navigation primitives (Link, NavLink, useNavigate)
+- [x] Phase 3 (Step 6) — File-based API route auto-discovery (`voltx/api`), auto `registerRoutes(app)`
+- [ ] Phase 3 (Steps 7–9) — Streaming UI components, background jobs, deployment helpers
 
 ---
 
