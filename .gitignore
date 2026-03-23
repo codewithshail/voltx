@@ -13,6 +13,7 @@ out/
 # Internal planning docs
 PHASE2-PLAN.md
 PHASE3-PLAN.md
+docs/
 
 # npm
 .npmrc

@@ -1,6 +1,6 @@
 {
   "name": "@voltx/cli",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "description": "VoltX CLI — dev server, build, start, generate, and scaffolding",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

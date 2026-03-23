@@ -89,4 +89,4 @@ export function createAuth(
 
 // ─── Version ─────────────────────────────────────────────────────────────────
 
-export const VERSION = "0.4.6";
+export const VERSION = "0.4.7";

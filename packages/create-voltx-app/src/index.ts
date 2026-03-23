@@ -92,19 +92,19 @@ function parseArgs(argv: string[]) {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const VOLTX_VERSIONS: Record<string, string> = {
-  "@voltx/core": "^0.4.6",
-  "@voltx/server": "^0.4.6",
-  "@voltx/cli": "^0.4.6",
-  "@voltx/ai": "^0.4.6",
-  "@voltx/agents": "^0.4.6",
-  "@voltx/memory": "^0.4.6",
-  "@voltx/db": "^0.4.6",
-  "@voltx/rag": "^0.4.6",
-  "@voltx/auth": "^0.4.6",
-  "@voltx/ui": "^0.4.6",
+  "@voltx/core": "^0.4.7",
+  "@voltx/server": "^0.4.7",
+  "@voltx/cli": "^0.4.7",
+  "@voltx/ai": "^0.4.7",
+  "@voltx/agents": "^0.4.7",
+  "@voltx/memory": "^0.4.7",
+  "@voltx/db": "^0.4.7",
+  "@voltx/rag": "^0.4.7",
+  "@voltx/auth": "^0.4.7",
+  "@voltx/ui": "^0.4.7",
 };
 
-function vv(pkg: string): string { return VOLTX_VERSIONS[pkg] ?? "^0.4.6"; }
+function vv(pkg: string): string { return VOLTX_VERSIONS[pkg] ?? "^0.4.7"; }
 
 const TEMPLATES: Record<string, { label: string; hint: string; deps: Record<string, string> }> = {
   blank: {
@@ -317,8 +317,8 @@ function scaffold(opts: ScaffoldOptions): void {
   // src/pages/index.tsx — Home page
   fs.writeFileSync(path.join(projectDir, "src", "pages", "index.tsx"), generateHomePage(projectName, template, enableRag));
 
-  // src/layout.tsx — Root layout
-  fs.writeFileSync(path.join(projectDir, "src", "layout.tsx"), generateLayoutComponent(projectName));
+  // src/pages/layout.tsx — Root layout (wraps all pages via Outlet)
+  fs.writeFileSync(path.join(projectDir, "src", "pages", "layout.tsx"), generateLayoutComponent(projectName));
 
   // src/globals.css — Global styles
   fs.writeFileSync(path.join(projectDir, "src", "globals.css"), generateGlobalCSS(useShadcn));
@@ -336,7 +336,7 @@ function scaffold(opts: ScaffoldOptions): void {
   fs.writeFileSync(path.join(projectDir, "src", "entry-server.tsx"), generateEntryServer());
 
   // src/voltx-env.d.ts — Type declarations for virtual modules
-  fs.writeFileSync(path.join(projectDir, "src", "voltx-env.d.ts"), `/// <reference types="vite/client" />\n\ndeclare module "voltx/router" {\n  import type { ComponentType } from "react";\n  export function VoltxRoutes(): JSX.Element;\n  export const routes: Array<{ path: string; Component: ComponentType }>;\n\n  // Navigation primitives (re-exported from react-router)\n  export { Link, NavLink } from "react-router";\n  export { useNavigate, useParams, useLocation, useSearchParams } from "react-router";\n}\n\ndeclare module "voltx/api" {\n  import type { Hono } from "hono";\n  export function registerRoutes(app: Hono): Array<{ method: string; path: string }>;\n}\n`);
+  fs.writeFileSync(path.join(projectDir, "src", "voltx-env.d.ts"), `/// <reference types="vite/client" />\n\ndeclare module "voltx/router" {\n  import type { ComponentType } from "react";\n  export function VoltxRoutes(): JSX.Element;\n  export const routes: Array<{ path: string; Component: ComponentType }>;\n\n  // Navigation primitives (re-exported from react-router)\n  export { Link, NavLink, Outlet } from "react-router";\n  export { useNavigate, useParams, useLocation, useSearchParams, useOutletContext } from "react-router";\n}\n\ndeclare module "voltx/api" {\n  import type { Hono } from "hono";\n  export function registerRoutes(app: Hono): Array<{ method: string; path: string }>;\n}\n`);
 
   // vite.config.ts
   fs.writeFileSync(path.join(projectDir, "vite.config.ts"), generateViteConfigFile("server.ts"));
@@ -1091,16 +1091,13 @@ function generateEntryClient(): string {
 import { hydrateRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
 import { VoltxRoutes } from "voltx/router";
-import Layout from "./layout";
 import "./globals.css";
 
 hydrateRoot(
   document.getElementById("root")!,
   <React.StrictMode>
     <BrowserRouter>
-      <Layout>
-        <VoltxRoutes />
-      </Layout>
+      <VoltxRoutes />
     </BrowserRouter>
   </React.StrictMode>
 );
@@ -1112,15 +1109,12 @@ function generateEntryServer(): string {
 import { renderToReadableStream } from "react-dom/server";
 import { StaticRouter } from "react-router";
 import { VoltxRoutes } from "voltx/router";
-import Layout from "./layout";
 
 export async function render(url: string): Promise<ReadableStream> {
   const stream = await renderToReadableStream(
     <React.StrictMode>
       <StaticRouter location={url}>
-        <Layout>
-          <VoltxRoutes />
-        </Layout>
+        <VoltxRoutes />
       </StaticRouter>
     </React.StrictMode>,
     {
