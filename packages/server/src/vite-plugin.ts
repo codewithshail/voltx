@@ -149,6 +149,12 @@ class VoltxErrorBoundary extends Component {
     return { hasError: true, error };
   }
 
+  componentDidCatch(error, errorInfo) {
+    // Intentionally swallow — prevents error from propagating to window error handlers
+    // (e.g. Vite's dev overlay) after React has already caught it.
+    console.error("[voltx] Caught by error boundary:", error);
+  }
+
   render() {
     if (this.state.hasError) {
       const reset = () => this.setState({ hasError: false, error: null });
