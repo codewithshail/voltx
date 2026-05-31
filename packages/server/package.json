@@ -19,7 +19,8 @@
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts --clean --external vite",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hono/node-server": "^1.14.0",
