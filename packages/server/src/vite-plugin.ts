@@ -287,9 +287,9 @@ function buildRouteElements() {
 
     if (hasLayout) {
       // This dir has a layout — create a layout route with children
+      // Error boundary + Suspense are inside the layout (wrapping Outlet)
       const LayoutWrapper = createLayoutElement(layouts[dir], dir);
-      let layoutElement = createElement(LayoutWrapper);
-      layoutElement = wrapElement(layoutElement, dir);
+      const layoutElement = createElement(LayoutWrapper);
 
       const layoutRoute = createElement(
         Route,
@@ -326,8 +326,7 @@ function buildRouteElements() {
   // If root has a layout, wrap everything in it
   if (layouts[""]) {
     const RootLayout = createLayoutElement(layouts[""], "");
-    let rootElement = createElement(RootLayout);
-    rootElement = wrapElement(rootElement, "");
+    const rootElement = createElement(RootLayout);
 
     return createElement(
       Routes,
