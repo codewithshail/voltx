@@ -3,6 +3,10 @@
 </p>
 
 <p align="center">
+  <img src="assets/voltx.jpg" alt="VoltX Banner" width="100%" />
+</p>
+
+<p align="center">
   <strong>The AI-first full-stack TypeScript framework</strong><br/>
   <em>Server + AI + Agents + RAG + DB + Auth + Memory + React SSR — all wired together</em>
 </p>
