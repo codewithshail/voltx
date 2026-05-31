@@ -17,6 +17,7 @@ import type {
   AgentFinishReason,
   Tool,
 } from "./types.js";
+import { generateRunId } from "./tracer.js";
 
 export class Agent {
   public config: AgentConfig;
@@ -46,16 +47,25 @@ export class Agent {
 
   /** Run the agent with a user message (ReAct loop) */
   async run(input: string, conversationId = "default"): Promise<AgentResponse> {
-    const { memory, instructions, model, maxIterations, temperature, maxTokens } = this.config;
+    const { memory, instructions, model, maxIterations, temperature, maxTokens, tracer } = this.config;
+    const runId = generateRunId();
+
+    // Start tracing if tracer is configured
+    tracer?.startRun(runId, this.config.name, model ?? "unknown");
 
     // Build conversation messages
     const messages: AIMessage[] = [];
 
     // Load history from memory
     if (memory) {
-      const history = await memory.get(conversationId);
-      for (const msg of history) {
-        messages.push({ role: msg.role, content: msg.content });
+      try {
+        const history = await memory.get(conversationId);
+        for (const msg of history) {
+          messages.push({ role: msg.role, content: msg.content });
+        }
+      } catch (err) {
+        tracer?.completeRun(runId, "error", { promptTokens: 0, completionTokens: 0, totalTokens: 0 }, String(err));
+        throw err;
       }
     }
 
@@ -75,97 +85,109 @@ export class Agent {
     const totalUsage: TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
     let finishReason: AgentFinishReason = "complete";
     let finalText = "";
+    let error: string | undefined;
 
-    for (let i = 0; i < (maxIterations ?? 10); i++) {
-      // Step: Call the LLM
-      const result = await generateText({
-        model: model!,
-        system: instructions,
-        messages,
-        tools: Object.keys(tools).length > 0 ? tools : undefined,
-        temperature,
-        maxTokens,
-      });
+    try {
+      for (let i = 0; i < (maxIterations ?? 10); i++) {
+        // Step: Call the LLM
+        const result = await generateText({
+          model: model!,
+          system: instructions,
+          messages,
+          tools: Object.keys(tools).length > 0 ? tools : undefined,
+          temperature,
+          maxTokens,
+        });
 
-      // Accumulate usage
-      totalUsage.promptTokens += result.usage.promptTokens;
-      totalUsage.completionTokens += result.usage.completionTokens;
-      totalUsage.totalTokens += result.usage.totalTokens;
+        // Accumulate usage
+        totalUsage.promptTokens += result.usage.promptTokens;
+        totalUsage.completionTokens += result.usage.completionTokens;
+        totalUsage.totalTokens += result.usage.totalTokens;
 
-      // Record the LLM call step
-      const llmStep: AgentStep = {
-        index: steps.length + 1,
-        type: "llm_call",
-        text: result.text,
-        toolCalls: result.toolCalls.map((tc) => ({
-          id: tc.id,
-          name: tc.name,
-          args: tc.args,
-        })),
-        usage: result.usage,
-        finishReason: result.finishReason,
-        timestamp: Date.now(),
-      };
-      steps.push(llmStep);
-      this.config.onStep?.(llmStep);
-
-      // If no tool calls, we're done
-      if (result.toolCalls.length === 0 || result.finishReason !== "tool_calls") {
-        finalText = result.text;
-        finishReason = "complete";
-        break;
-      }
-
-      // Add assistant message with tool calls to conversation
-      messages.push({
-        role: "assistant",
-        content: result.text || "",
-        tool_calls: result.toolCalls.map((tc) => ({
-          id: tc.id,
-          type: "function" as const,
-          function: { name: tc.name, arguments: JSON.stringify(tc.args) },
-        })),
-      });
-
-      // Execute each tool call
-      for (const toolCall of result.toolCalls) {
-        const execution = await this.executeTool(toolCall.id, toolCall.name, toolCall.args);
-
-        // Record the tool execution step
-        const toolStep: AgentStep = {
+        // Record the LLM call step
+        const llmStep: AgentStep = {
           index: steps.length + 1,
-          type: "tool_call",
-          toolExecution: execution,
+          type: "llm_call",
+          text: result.text,
+          toolCalls: result.toolCalls.map((tc) => ({
+            id: tc.id,
+            name: tc.name,
+            args: tc.args,
+          })),
+          usage: result.usage,
+          finishReason: result.finishReason,
           timestamp: Date.now(),
         };
-        steps.push(toolStep);
-        this.config.onStep?.(toolStep);
+        steps.push(llmStep);
+        this.config.onStep?.(llmStep);
+        tracer?.recordStep(runId, llmStep);
 
-        // Add tool result to conversation
-        const resultStr = execution.error
-          ? `Error: ${execution.error}`
-          : typeof execution.result === "string"
-            ? execution.result
-            : JSON.stringify(execution.result);
+        // If no tool calls, we're done
+        if (result.toolCalls.length === 0 || result.finishReason !== "tool_calls") {
+          finalText = result.text;
+          finishReason = "complete";
+          break;
+        }
 
+        // Add assistant message with tool calls to conversation
         messages.push({
-          role: "tool",
-          content: resultStr,
-          tool_call_id: toolCall.id,
+          role: "assistant",
+          content: result.text || "",
+          tool_calls: result.toolCalls.map((tc) => ({
+            id: tc.id,
+            type: "function" as const,
+            function: { name: tc.name, arguments: JSON.stringify(tc.args) },
+          })),
         });
-      }
 
-      // Check if we've hit max iterations (next iteration would exceed)
-      if (i === (maxIterations ?? 10) - 1) {
-        finalText = result.text || "[Agent reached max iterations]";
-        finishReason = "max_iterations";
+        // Execute each tool call
+        for (const toolCall of result.toolCalls) {
+          const execution = await this.executeTool(toolCall.id, toolCall.name, toolCall.args);
+
+          // Record the tool execution step
+          const toolStep: AgentStep = {
+            index: steps.length + 1,
+            type: "tool_call",
+            toolExecution: execution,
+            timestamp: Date.now(),
+          };
+          steps.push(toolStep);
+          this.config.onStep?.(toolStep);
+          tracer?.recordStep(runId, toolStep);
+
+          // Add tool result to conversation
+          const resultStr = execution.error
+            ? `Error: ${execution.error}`
+            : typeof execution.result === "string"
+              ? execution.result
+              : JSON.stringify(execution.result);
+
+          messages.push({
+            role: "tool",
+            content: resultStr,
+            tool_call_id: toolCall.id,
+          });
+        }
+
+        // Check if we've hit max iterations (next iteration would exceed)
+        if (i === (maxIterations ?? 10) - 1) {
+          finalText = result.text || "[Agent reached max iterations]";
+          finishReason = "max_iterations";
+        }
       }
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+      finishReason = "error";
+      finalText = `[Error: ${error}]`;
     }
 
     // Store assistant response in memory
-    if (memory && finalText) {
+    if (memory && finalText && finishReason !== "error") {
       await memory.add(conversationId, { role: "assistant", content: finalText });
     }
+
+    // Complete trace
+    tracer?.completeRun(runId, finishReason, totalUsage, error);
 
     return { content: finalText, steps, usage: totalUsage, finishReason };
   }

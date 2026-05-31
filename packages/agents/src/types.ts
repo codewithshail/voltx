@@ -2,6 +2,7 @@
 
 import type { MemoryStore } from "@voltx/memory";
 import type { TokenUsage, FinishReason } from "@voltx/ai";
+import type { AgentTracer } from "./tracer.js";
 
 // ─── Tool ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,8 @@ export interface AgentConfig {
   temperature?: number;
   /** Max tokens per LLM call */
   maxTokens?: number;
+  /** Tracer for observability and cost tracking */
+  tracer?: AgentTracer;
   /** Called when a tool is about to be executed */
   onToolCall?: (toolName: string, args: Record<string, unknown>) => void;
   /** Called when a tool returns a result */

@@ -14,6 +14,11 @@
 
 export { Agent } from "./agent.js";
 
+// ─── Tracer ──────────────────────────────────────────────────────────────────
+
+export { AgentTracer, generateRunId } from "./tracer.js";
+export type { AgentTrace, TracerOptions } from "./tracer.js";
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type {
