@@ -220,12 +220,15 @@ function wrapElement(element, dir) {
 }
 
 // ─── Layout wrapper component ────────────────────────────────────────────────
-// A layout component that renders the layout with <Outlet /> for children
+// Creates a layout component that wraps <Outlet /> with error/loading boundaries.
+// The error boundary and suspense MUST wrap the Outlet (child content),
+// not the layout itself — otherwise errors in child routes won't be caught.
 function createLayoutElement(LayoutComp, dir) {
-  // The layout component receives <Outlet /> as its children rendering point
-  // We create a wrapper that renders Layout with Outlet inside
   function LayoutWrapper() {
-    return createElement(LayoutComp, null, createElement(Outlet));
+    let outlet = createElement(Outlet);
+    // Wrap the outlet (child content) with error boundary + suspense
+    outlet = wrapElement(outlet, dir);
+    return createElement(LayoutComp, null, outlet);
   }
   LayoutWrapper.displayName = "Layout(" + (dir || "root") + ")";
   return LayoutWrapper;
